@@ -357,6 +357,11 @@ Crea contenuti originali e didatticamente corretti per "{arg}"."""
         codice += chr(10) + "generate()" + chr(10)
     ok, errore, pdf_bytes = esegui_codice(codice)
     if not ok:
+        # Log del codice generato per debug
+        print("=== CODICE GENERATO (primi 500 char) ===")
+        print(codice[:500])
+        print("=== ERRORE ===")
+        print(errore)
         return jsonify({"error": errore}), 500
 
     return servi_pdf(pdf_bytes, "Scheda_Matematica_" + arg)
