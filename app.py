@@ -247,134 +247,232 @@ def genera_matematica():
     arg    = d.get("argomento", "Frazioni")
     classe = d.get("classe", "Prima Media")
 
-    template_path = PROTO_DIR / "template_matematica.py"
-    if not template_path.exists():
-        return jsonify({"error": "Template matematica non trovato"}), 404
-
-    template = template_path.read_text(encoding="utf-8")
-
-    # Estrai SOLO la parte statica (helper functions + header/footer)
-    # Rimuovi il docstring iniziale che confonde DeepSeek
-    idx_blocchi = template.find("# ============" + "=" * 60 + "\n# BLOCCHI")
-    if idx_blocchi == -1:
-        idx_blocchi = template.find("# BLOCCHI")
-    parte_statica = template[:idx_blocchi] if idx_blocchi > 0 else template[:7800]
-
-    # Rimuovi il docstring iniziale (confonde DeepSeek)
-    if parte_statica.startswith('"""'):
-        fine_doc = parte_statica.find('"""', 3)
-        if fine_doc > 0:
-            parte_statica = parte_statica[fine_doc + 3:].lstrip()
-
-    # Fix percorso output
-    parte_statica = parte_statica.replace(
-        '"/mnt/user-data/outputs/scheda_matematica.pdf"',
-        '"/tmp/out.pdf"'
+    # STEP 1: DeepSeek genera SOLO i testi (JSON piccolo, 400 token)
+    prompt_json = (
+        "Rispondi SOLO con JSON valido. Nessun testo extra. Nessun markdown." + chr(10) +
+        "Crea contenuti didattici su " + chr(34) + arg + chr(34) +
+        " per classe " + classe + "." + chr(10) +
+        "JSON richiesto:" + chr(10) +
+        "{" + chr(10) +
+        '  "titolo": "' + arg.upper()[:35] + '",' + chr(10) +
+        '  "def1": "Definizione breve di ' + arg + ' (max 80 char, no apostrofi)",' + chr(10) +
+        '  "reg1": "Prima regola/proprieta di ' + arg + ' (max 80 char, no apostrofi)",' + chr(10) +
+        '  "reg2": "Seconda regola di ' + arg + ' (max 80 char, no apostrofi)",' + chr(10) +
+        '  "es1": "Esempio numerico 1 su ' + arg + ' (max 60 char)",' + chr(10) +
+        '  "es2": "Esempio numerico 2 su ' + arg + ' (max 60 char)",' + chr(10) +
+        '  "es3": "Esempio numerico 3 su ' + arg + ' (max 60 char)",' + chr(10) +
+        '  "ese1": "Consegna esercizio 1 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
+        '  "ese2": "Consegna esercizio 2 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
+        '  "ese3": "Consegna esercizio 3 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
+        '  "ese4": "Consegna esercizio 4 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
+        '  "ese5": "Consegna esercizio 5 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
+        '  "ese6": "Consegna esercizio 6 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
+        '  "vf1": "Affermazione 1 su ' + arg + ' vera o falsa (max 70 char, no apostrofi)",' + chr(10) +
+        '  "vf2": "Affermazione 2 su ' + arg + ' (max 70 char, no apostrofi)",' + chr(10) +
+        '  "vf3": "Affermazione 3 su ' + arg + ' (max 70 char, no apostrofi)",' + chr(10) +
+        '  "vf4": "Affermazione 4 su ' + arg + ' (max 70 char, no apostrofi)",' + chr(10) +
+        '  "prob1": "Testo problema 1 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
+        '  "prob1b": "Seconda riga problema 1 (max 75 char, no apostrofi)",' + chr(10) +
+        '  "prob2": "Testo problema 2 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
+        '  "prob2b": "Seconda riga problema 2 (max 75 char, no apostrofi)"' + chr(10) +
+        "}"
     )
-    parte_statica = parte_statica.replace(
-        'os.makedirs("/mnt/user-data/outputs",exist_ok=True)',
-        'os.makedirs("/tmp",exist_ok=True)'
-    )
-
-    # Chiedi a DeepSeek di riscrivere SOLO le funzioni degli esercizi
-    prompt = f"""Scrivi codice Python per una scheda di matematica su "{arg}" (classe {classe}).
-
-USA queste funzioni gia definite (non ridefinirle):
-block_open(cv,y_top,h,title,cb,cl)->yc, frac(cv,cx,cy,num,den,fsz,col),
-pizza(cv,cx,cy,r,num,den,fc), write_lines(cv,cx,cy,col),
-draw_header(cv), draw_footer(cv), sf(cv,c), ss(cv,c)
-
-Colori: NAVY,NAVYL,ORANGE,ORANGEL,GREEN,GREENL,RED,REDL,TEAL,TEALL,BROWN,BROWNL,PURPLE,PURPLEL,GOLD,WHITE,BLACK,GRAY,GRAYL
-Costanti: ML=28, X0=38, X1=557.28, BW=539.28, CW=519.28, TOP=737.89, GAP=7, TH=26
-OUT="/tmp/out.pdf" gia definito.
-
-SCRIVI SOLO queste funzioni (niente altro, niente spiegazioni):
-
-def b_teoria(cv, y_top):
-    # Spiega {arg} per classe {classe}, h=200
-    # Usa block_open(), cv.drawString() con testi su {arg}
-    ...
-
-def b_es1(cv, y_top):
-    # Esercizio 1 su {arg}, h appropriata
-    ...
-
-def b_es2(cv, y_top):
-    # Esercizio 2 su {arg}
-    ...
-
-def b_es3(cv, y_top):
-    # Esercizio 3 su {arg}
-    ...
-
-def b_vf(cv, y_top):
-    # Vero/Falso su {arg}, 4 affermazioni
-    ...
-
-def b_problemi(cv, y_top):
-    # 2 problemi su {arg}
-    ...
-
-def generate():
-    import os; os.makedirs("/tmp", exist_ok=True)
-    cv = canvas.Canvas(OUT, pagesize=A4)
-    draw_header(cv)
-    y = TOP
-    y = b_teoria(cv, y)
-    y = b_es1(cv, y)
-    cv.showPage()
-    draw_header(cv); draw_footer(cv)
-    y = TOP
-    y = b_es2(cv, y)
-    y = b_es3(cv, y)
-    cv.showPage()
-    draw_header(cv); draw_footer(cv)
-    y = TOP
-    y = b_vf(cv, y)
-    y = b_problemi(cv, y)
-    cv.showPage()
-    cv.save()
-
-REGOLE:
-- Solo stringhe normali in drawString (NO f-string con variabili)
-- h di ogni blocco deve essere sufficiente per il contenuto
-- PAG1 totale max 738pt, PAG2 e PAG3 max 718pt
-- Tutto il contenuto riguarda "{arg}", niente frazioni o altro"""
 
     try:
-        funzioni_esercizi = ai(prompt, max_tok=4096)
-
-        # Pulizia markdown
-        if "```python" in funzioni_esercizi:
-            funzioni_esercizi = funzioni_esercizi.split("```python")[1].split("```")[0].strip()
-        elif "```" in funzioni_esercizi:
-            funzioni_esercizi = funzioni_esercizi.split("```")[1].split("```")[0].strip()
-
-        # Controllo: DeepSeek ha restituito il template originale invece di generare?
-        if "TEMPLATE_SCHEDA_BES" in funzioni_esercizi or "REGOLA FONDAMENTALE" in funzioni_esercizi:
-            return jsonify({"error": "DeepSeek ha restituito il template originale invece di generare nuove funzioni. Riprova."}), 500
-
-        # Controllo: il codice contiene le funzioni necessarie?
-        if "def generate()" not in funzioni_esercizi and "def b_" not in funzioni_esercizi:
-            return jsonify({"error": "DeepSeek non ha generato le funzioni necessarie. Riprova."}), 500
-
+        raw = ai(prompt_json, max_tok=600)
+        print("JSON DeepSeek:", raw[:200])
+        # Pulizia
+        if "```" in raw:
+            raw = raw.split("```")[1]
+            if raw.startswith("json"): raw = raw[4:]
+            raw = raw.split("```")[0]
+        t = json.loads(raw.strip())
     except Exception as e:
-        return jsonify({"error": f"DeepSeek non risponde: {str(e)}"}), 500
+        print("DeepSeek JSON fallito:", str(e))
+        # Fallback con testi generici
+        t = {
+            "titolo": arg.upper()[:35],
+            "def1": arg + " e un concetto fondamentale della matematica.",
+            "reg1": "Prima regola importante di " + arg + ".",
+            "reg2": "Seconda regola importante di " + arg + ".",
+            "es1": "Esempio 1: ...",
+            "es2": "Esempio 2: ...",
+            "es3": "Esempio 3: ...",
+            "ese1": "Esercizio 1: applica " + arg + ".",
+            "ese2": "Esercizio 2: calcola usando " + arg + ".",
+            "ese3": "Esercizio 3: risolvi con " + arg + ".",
+            "ese4": "Esercizio 4: usa le proprieta di " + arg + ".",
+            "ese5": "Esercizio 5: problema su " + arg + ".",
+            "ese6": "Esercizio 6: verifica con " + arg + ".",
+            "vf1": "La prima affermazione su " + arg + " e vera.",
+            "vf2": "La seconda affermazione su " + arg + " e falsa.",
+            "vf3": "La terza affermazione su " + arg + " e vera.",
+            "vf4": "La quarta affermazione su " + arg + " e vera.",
+            "prob1": "Problema 1: applica " + arg + " per risolvere.",
+            "prob1b": "Mostra il procedimento e scrivi il risultato.",
+            "prob2": "Problema 2: usa " + arg + " per trovare il risultato.",
+            "prob2b": "Mostra il procedimento e scrivi il risultato."
+        }
 
-    # Componi il codice finale
-    sep = chr(10) + chr(10)
-    codice = parte_statica + sep + funzioni_esercizi
+    # STEP 2: genera PDF con template Python hardcoded
+    q = chr(34)
+    bul = chr(9679)
 
-    # Assicura generate() venga chiamata
-    if "def generate()" in codice and codice.count("generate()") < 2:
-        codice += chr(10) + "generate()" + chr(10)
+    codice = """
+import os
+os.makedirs('/tmp', exist_ok=True)
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+import math
+
+W, H = A4
+cv = canvas.Canvas('/tmp/out.pdf', pagesize=A4)
+ML, MR = 28, 28
+BW = W - ML - MR
+X0 = ML + 10
+GAP = 7
+NAVY=(0.10,0.20,0.55); NAVYL=(0.88,0.92,1.00)
+ORANGE=(0.88,0.46,0.06); ORANGEL=(1.00,0.95,0.83)
+GREEN=(0.14,0.56,0.22); GREENL=(0.88,0.98,0.88)
+RED=(0.68,0.12,0.12); REDL=(1.00,0.90,0.90)
+TEAL=(0.08,0.48,0.54); TEALL=(0.84,0.96,0.97)
+BROWN=(0.52,0.28,0.05); BROWNL=(1.00,0.94,0.82)
+GOLD=(0.80,0.62,0.04)
+WHITE=(1,1,1); BLACK=(0.05,0.05,0.05)
+GRAY=(0.48,0.48,0.48); GRAYL=(0.95,0.95,0.95)
+
+def sf(c): cv.setFillColorRGB(*c)
+def ss(c): cv.setStrokeColorRGB(*c)
+
+def header():
+    # Gradiente header
+    for i in range(30):
+        t=i/30
+        r=0.10+(0.25-0.10)*t; g=0.20+(0.55-0.20)*t; b=0.55+(0.90-0.55)*t
+        cv.setFillColorRGB(r,g,b)
+        y=H-78+i*(78/30)
+        cv.rect(0,y,W,78/30+0.5,fill=1,stroke=0)
+    sf(WHITE); cv.setFont('Helvetica-Bold',22)
+    cv.drawString(86,H-38,""" + q + t["titolo"] + q + """)
+    sf((0.85,0.92,1.00)); cv.setFont('Helvetica',11)
+    cv.drawString(88,H-56,""" + q + "Scheda di matematica - Classe " + classe + q + """)
+    sf(NAVYL); cv.roundRect(ML,H-100,BW,22,5,fill=1,stroke=0)
+    sf(BLACK); cv.setFont('Helvetica',9)
+    cv.drawString(X0,H-89,"Nome: _________________   Cognome: _________________   Classe: ______   Data: __________")
+
+def footer():
+    sf(GRAYL); cv.rect(0,0,W,20,fill=1,stroke=0)
+    sf(GRAY); cv.setFont('Helvetica-Oblique',7.5)
+    cv.drawCentredString(W/2,6,"Prof. A. Giuffrida  -  Matematica")
+
+def blocco(y_top, h, titolo, cb, cl):
+    bx=ML; by=y_top-h
+    sf(cl); cv.roundRect(bx,by,BW,h,7,fill=1,stroke=0)
+    ss(cb); cv.setLineWidth(1.5)
+    cv.roundRect(bx,by,BW,h,7,fill=0,stroke=1)
+    sf(cb); cv.roundRect(bx,y_top-26,BW,26,7,fill=1,stroke=0)
+    sf(WHITE); cv.setFont('Helvetica-Bold',9.5)
+    cv.drawString(X0,y_top-18,titolo)
+    return y_top-26-9
+
+TOP = H-104
+
+# ── PAGINA 1 ──────────────────────────────────────────────────────
+header()
+y = TOP
+
+# Blocco 1 - Teoria
+yc = blocco(y, 200, """ + q + bul + " 1   " + t["titolo"] + q + """, NAVY, NAVYL)
+sf(BLACK); cv.setFont('Helvetica-Bold',10.5)
+cv.drawString(X0, yc-2, """ + q + t["def1"] + q + """)
+cv.setFont('Helvetica',9.5)
+cv.drawString(X0, yc-18, """ + q + t["reg1"] + q + """)
+cv.drawString(X0, yc-34, """ + q + t["reg2"] + q + """)
+sf(NAVY); cv.setFont('Helvetica-Bold',9)
+cv.drawString(X0, yc-55, "ESEMPI:")
+sf(BLACK); cv.setFont('Helvetica',9.5)
+cv.drawString(X0+10, yc-70, """ + q + "a)  " + t["es1"] + q + """)
+cv.drawString(X0+10, yc-86, """ + q + "b)  " + t["es2"] + q + """)
+cv.drawString(X0+10, yc-102, """ + q + "c)  " + t["es3"] + q + """)
+y = y - 200 - GAP
+
+# Blocco 2 - Esercizi
+h2 = 160
+yc = blocco(y, h2, """ + q + bul + " 2   ESERCIZI" + q + """, ORANGE, ORANGEL)
+sf(BLACK); cv.setFont('Helvetica',9.5)
+for i,(ese,lett) in enumerate(zip([""" + q + t["ese1"] + q + "," + q + t["ese2"] + q + "," + q + t["ese3"] + q + """], ['a','b','c'])):
+    cv.drawString(X0, yc-2-i*38, lett + ")  " + ese)
+    cv.setDash([3,4]); ss(GRAY); cv.setLineWidth(0.7)
+    cv.line(X0+10, yc-16-i*38, X0+BW-20, yc-16-i*38)
+    cv.line(X0+10, yc-28-i*38, X0+BW-20, yc-28-i*38)
+    cv.setDash([])
+y = y - h2 - GAP
+
+cv.showPage()
+
+# ── PAGINA 2 ──────────────────────────────────────────────────────
+header(); footer()
+y = TOP
+
+# Blocco 3 - Altri esercizi
+h3 = 160
+yc = blocco(y, h3, """ + q + bul + " 3   ANCORA ESERCIZI" + q + """, GREEN, GREENL)
+sf(BLACK); cv.setFont('Helvetica',9.5)
+for i,(ese,lett) in enumerate(zip([""" + q + t["ese4"] + q + "," + q + t["ese5"] + q + "," + q + t["ese6"] + q + """], ['a','b','c'])):
+    cv.drawString(X0, yc-2-i*38, lett + ")  " + ese)
+    cv.setDash([3,4]); ss(GRAY); cv.setLineWidth(0.7)
+    cv.line(X0+10, yc-16-i*38, X0+BW-20, yc-16-i*38)
+    cv.line(X0+10, yc-28-i*38, X0+BW-20, yc-28-i*38)
+    cv.setDash([])
+y = y - h3 - GAP
+
+# Blocco 4 - Vero/Falso
+vf_items = [""" + q + t["vf1"] + q + "," + q + t["vf2"] + q + "," + q + t["vf3"] + q + "," + q + t["vf4"] + q + """]
+h4 = 26+9 + len(vf_items)*22 + 10
+yc = blocco(y, h4, """ + q + bul + " 4   VERO O FALSO?" + q + """, TEAL, TEALL)
+sf(BLACK); cv.setFont('Helvetica',9.5)
+for i,aff in enumerate(vf_items):
+    yr = yc - 8 - i*22
+    cv.drawString(X0+4, yr, str(i+1)+".  "+aff)
+    ss((0.2,0.6,0.2)); cv.setLineWidth(0.8)
+    cv.rect(X0+BW-75, yr-3, 30, 14, fill=0, stroke=1)
+    sf((0.2,0.6,0.2)); cv.setFont('Helvetica-Bold',7.5)
+    cv.drawCentredString(X0+BW-60, yr+5, "VERO")
+    ss((0.7,0.1,0.1))
+    cv.rect(X0+BW-40, yr-3, 30, 14, fill=0, stroke=1)
+    sf((0.7,0.1,0.1))
+    cv.drawCentredString(X0+BW-25, yr+5, "FALSO")
+    cv.setFont('Helvetica',9.5)
+y = y - h4 - GAP
+
+# Blocco 5 - Problemi
+h5 = 140
+yc = blocco(y, h5, """ + q + bul + " 5   PROBLEMI" + q + """, BROWN, BROWNL)
+sf(BLACK); cv.setFont('Helvetica-Bold',9.5)
+cv.drawString(X0, yc-8, "1.  " + """ + q + t["prob1"] + q + """)
+cv.setFont('Helvetica',9)
+cv.drawString(X0+10, yc-22, """ + q + t["prob1b"] + q + """)
+cv.setDash([3,4]); ss(GRAY); cv.setLineWidth(0.7)
+cv.line(X0, yc-36, X0+BW-20, yc-36)
+cv.line(X0, yc-48, X0+BW-20, yc-48)
+cv.setDash([])
+cv.setFont('Helvetica-Bold',9.5)
+cv.drawString(X0, yc-65, "2.  " + """ + q + t["prob2"] + q + """)
+cv.setFont('Helvetica',9)
+cv.drawString(X0+10, yc-79, """ + q + t["prob2b"] + q + """)
+cv.setDash([3,4]); ss(GRAY); cv.setLineWidth(0.7)
+cv.line(X0, yc-93, X0+BW-20, yc-93)
+cv.line(X0, yc-105, X0+BW-20, yc-105)
+cv.setDash([])
+
+cv.showPage()
+cv.save()
+print("OK")
+"""
+
     ok, errore, pdf_bytes = esegui_codice(codice)
     if not ok:
-        # Log del codice generato per debug
-        print("=== CODICE GENERATO (primi 500 char) ===")
-        print(codice[:500])
-        print("=== ERRORE ===")
-        print(errore)
+        print("ERRORE:", errore)
         return jsonify({"error": errore}), 500
 
     return servi_pdf(pdf_bytes, "Scheda_Matematica_" + arg)
