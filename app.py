@@ -28,17 +28,15 @@ def ai(prompt, max_tok=4096):
         temperature=0.2
     ).choices[0].message.content.strip()
 
-def ai_ragiona(prompt, max_tok=8000):
-    """Usa deepseek-reasoner: ragiona prima di rispondere. Piu lento ma molto piu preciso."""
+def ai_ragiona(prompt, max_tok=4000):
+    """Versione con temperature alta per risposte piu elaborate."""
     client = OpenAI(api_key=DEEPSEEK_KEY, base_url="https://api.deepseek.com")
-    resp = client.chat.completions.create(
-        model="deepseek-reasoner",
+    return client.chat.completions.create(
+        model="deepseek-chat",
         messages=[{"role":"user","content":prompt}],
-        max_tokens=max_tok
-    )
-    # deepseek-reasoner restituisce il ragionamento + la risposta finale
-    # noi vogliamo solo la risposta finale (content)
-    return resp.choices[0].message.content.strip()
+        max_tokens=max_tok,
+        temperature=0.7
+    ).choices[0].message.content.strip()
 
 def esegui_codice(codice):
     """Esegue codice Python e restituisce (ok, errore, pdf_bytes)"""
