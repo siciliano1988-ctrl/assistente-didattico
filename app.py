@@ -316,6 +316,409 @@ def genera_matematica():
             "prob2b": "Mostra il procedimento e scrivi il risultato."
         }
 
+    # STEP 2: genera PDF con template professionale
+    q = chr(34)
+    bul = chr(9679)
+    ap = chr(39)
+
+    codice = """
+import os, math
+os.makedirs('/tmp', exist_ok=True)
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+
+W, H = A4
+ML, MR = 28, 28
+BW = W - ML - MR
+X0 = ML + 10
+X1 = ML + BW - 10
+GAP = 8
+TH = 26  # altezza header blocco
+
+# Palette
+NAVY=(0.10,0.20,0.55); NAVYL=(0.88,0.92,1.00)
+ORANGE=(0.88,0.46,0.06); ORANGEL=(1.00,0.95,0.83)
+GREEN=(0.14,0.56,0.22); GREENL=(0.88,0.98,0.88)
+RED=(0.68,0.12,0.12); REDL=(1.00,0.90,0.90)
+TEAL=(0.08,0.48,0.54); TEALL=(0.84,0.96,0.97)
+BROWN=(0.52,0.28,0.05); BROWNL=(1.00,0.94,0.82)
+PURPLE=(0.48,0.14,0.68); PURPLEL=(0.95,0.88,1.00)
+GOLD=(0.80,0.62,0.04)
+WHITE=(1,1,1); BLACK=(0.05,0.05,0.05)
+GRAY=(0.55,0.55,0.55); GRAYL=(0.93,0.93,0.93)
+
+cv = canvas.Canvas('/tmp/out.pdf', pagesize=A4)
+TOP = H - 104  # sotto header studente
+
+def sf(c): cv.setFillColorRGB(*c)
+def ss(c): cv.setStrokeColorRGB(*c)
+
+def wrap_text(text, max_chars=78):
+    # Spezza testo in righe da max_chars caratteri
+    words = text.split()
+    lines = []
+    current = ""
+    for word in words:
+        if len(current) + len(word) + 1 <= max_chars:
+            current = (current + " " + word).strip()
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+def text_height(text, max_chars=78, line_h=14):
+    # Calcola altezza necessaria per un testo wrappato
+    return len(wrap_text(text, max_chars)) * line_h
+
+def draw_text_wrapped(text, x, y, max_chars=78, line_h=14, font="Helvetica", size=9.5, col=BLACK):
+    # Disegna testo wrappato, ritorna y finale
+    sf(col); cv.setFont(font, size)
+    for line in wrap_text(text, max_chars):
+        cv.drawString(x, y, line)
+        y -= line_h
+    return y
+
+def header(titolo, sottotitolo):
+    # Gradiente header
+    for i in range(30):
+        t = i / 30
+        cv.setFillColorRGB(0.10+(0.25-0.10)*t, 0.20+(0.55-0.20)*t, 0.55+(0.90-0.55)*t)
+        cv.rect(0, H-78+i*(78/30), W, 78/30+0.5, fill=1, stroke=0)
+    # Titolo
+    sf(WHITE); cv.setFont('Helvetica-Bold', 22)
+    cv.drawString(ML, H-38, titolo)
+    sf((0.85,0.92,1.00)); cv.setFont('Helvetica', 11)
+    cv.drawString(ML, H-56, sottotitolo)
+    # Badge
+    badge_x = ML
+    for txt, col in [("DEFINIZIONE", GOLD), ("REGOLE", ORANGE), ("ESERCIZI", GREEN)]:
+        sf(col); tw = len(txt)*5.8+14
+        cv.roundRect(badge_x, H-72, tw, 14, 4, fill=1, stroke=0)
+        sf(WHITE); cv.setFont('Helvetica-Bold', 7)
+        cv.drawString(badge_x+7, H-65, txt)
+        badge_x += tw + 6
+    # Box dati studente
+    sf(NAVYL); cv.roundRect(ML, H-100, BW, 22, 5, fill=1, stroke=0)
+    sf(BLACK); cv.setFont('Helvetica', 9)
+    cv.drawString(X0, H-89, "Nome: _________________   Cognome: _________________   Classe: ______   Data: __________")
+
+def footer():
+    sf(GRAYL); cv.rect(0, 0, W, 20, fill=1, stroke=0)
+    sf(GRAY); cv.setFont('Helvetica-Oblique', 7.5)
+    cv.drawCentredString(W/2, 6, "Prof. A. Giuffrida  -  Matematica")
+
+def blocco_apri(y_top, h, titolo, cb, cl):
+    # Disegna il box colorato con griglia leggera e header
+    bx, by = ML, y_top - h
+    # Sfondo
+    sf(cl); cv.roundRect(bx, by, BW, h, 7, fill=1, stroke=0)
+    # Griglia leggera
+    cv.saveState()
+    p = cv.beginPath(); p.rect(bx, by, BW, h)
+    cv.clipPath(p, stroke=0, fill=0)
+    ss((0.80,0.87,0.95)); cv.setLineWidth(0.3)
+    x = bx
+    while x <= bx+BW:
+        cv.line(x, by, x, by+h); x += 14
+    y = by
+    while y <= by+h:
+        cv.line(bx, y, bx+BW, y); y += 14
+    cv.restoreState()
+    # Bordo
+    ss(cb); cv.setLineWidth(1.5)
+    cv.roundRect(bx, by, BW, h, 7, fill=0, stroke=1)
+    # Header band
+    cv.saveState()
+    p = cv.beginPath(); p.rect(bx, y_top-TH, BW, TH)
+    cv.clipPath(p, stroke=0, fill=0)
+    sf(cb); cv.roundRect(bx, y_top-TH, BW, TH, 7, fill=1, stroke=0)
+    cv.restoreState()
+    # Numero cerchiato
+    cx_num = ML + 14; cy_num = y_top - TH/2
+    sf(WHITE); cv.circle(cx_num, cy_num, 9, fill=1, stroke=0)
+    sf(cb); cv.setFont('Helvetica-Bold', 9)
+    # Titolo
+    sf(WHITE); cv.setFont('Helvetica-Bold', 9.5)
+    cv.drawString(ML+30, y_top-TH+8, titolo)
+    return y_top - TH - 9  # yc = primo punto libero
+
+def linee_risposta(y, n=2, col=GRAY):
+    # Disegna n linee punteggiate per la risposta
+    for i in range(n):
+        ss(col); cv.setLineWidth(0.7)
+        cv.setDash([3,4])
+        cv.line(X0+4, y - i*14, X1-4, y - i*14)
+        cv.setDash([])
+    return y - n*14 - 4
+
+def box_vf(x, y, w=28, h=13):
+    # Disegna un box V/F
+    ss(GRAY); cv.setLineWidth(0.8)
+    cv.rect(x, y-3, w, h, fill=0, stroke=1)
+
+# ============================================================
+# DATI INSERITI DA DEEPSEEK
+# ============================================================
+TITOLO   = """  + q + t["titolo"] + q + """
+CLASSE   = """  + q + classe + q + """
+DEF1     = """  + q + t["def1"] + q + """
+REG1     = """  + q + t["reg1"] + q + """
+REG2     = """  + q + t["reg2"] + q + """
+REG3     = """  + q + t.get("reg3","") + q + """
+ES1      = """  + q + t["es1"] + q + """
+ES2      = """  + q + t["es2"] + q + """
+ES3      = """  + q + t["es3"] + q + """
+ESE1     = """  + q + t["ese1"] + q + """
+ESE2     = """  + q + t["ese2"] + q + """
+ESE3     = """  + q + t["ese3"] + q + """
+ESE4     = """  + q + t["ese4"] + q + """
+ESE5     = """  + q + t["ese5"] + q + """
+ESE6     = """  + q + t["ese6"] + q + """
+VF1      = """  + q + t["vf1"] + q + """
+VF2      = """  + q + t["vf2"] + q + """
+VF3      = """  + q + t["vf3"] + q + """
+VF4      = """  + q + t["vf4"] + q + """
+PROB1    = """  + q + t["prob1"] + q + """
+PROB1B   = """  + q + t["prob1b"] + q + """
+PROB2    = """  + q + t["prob2"] + q + """
+PROB2B   = """  + q + t["prob2b"] + q + """
+
+# ============================================================
+# CALCOLO ALTEZZE DINAMICHE
+# ============================================================
+LH = 14   # line height normale
+LHS = 13  # line height piccola
+
+# Altezza blocco teoria
+h_def  = text_height(DEF1, 74, LH) + 10
+h_regs = text_height(REG1, 74, LH) + text_height(REG2, 74, LH) + text_height(REG3, 74, LH) + 15
+h_es   = 3 * (LH + 4) + 8
+h_teoria = TH + 9 + 14 + h_def + 10 + 14 + h_regs + 14 + h_es + 10
+h_teoria = max(h_teoria, 180)
+
+# Altezza blocco esercizi (3 esercizi con 2 linee risposta)
+h_un_ese = LH + 4 + 2*14 + 8
+h_ese3 = TH + 9 + 3 * h_un_ese + 10
+h_ese3 = max(h_ese3, 130)
+
+# Altezza V/F (4 voci)
+h_vf = TH + 9 + 4 * (LH + 8) + 12
+h_vf = max(h_vf, 110)
+
+# Altezza problemi (2 problemi)
+h_p1 = text_height(PROB1, 70, LH) + text_height(PROB1B, 70, LH) + 2*14 + 10
+h_p2 = text_height(PROB2, 70, LH) + text_height(PROB2B, 70, LH) + 2*14 + 10
+h_prob = TH + 9 + h_p1 + 8 + h_p2 + 10
+h_prob = max(h_prob, 130)
+
+# ============================================================
+# PAGINA 1: TEORIA + PRIMO BLOCCO ESERCIZI
+# ============================================================
+header(TITOLO, "Scheda di matematica - Classe " + CLASSE)
+y = TOP
+
+# BLOCCO 1 — TEORIA
+yc = blocco_apri(y, h_teoria, "1   SPIEGAZIONE — " + TITOLO, NAVY, NAVYL)
+
+# Box definizione
+h_def_box = h_def + 6
+sf((0.90,0.94,1.0))
+cv.roundRect(X0, yc - h_def_box, BW-20, h_def_box, 5, fill=1, stroke=0)
+sf(NAVY); cv.setFont('Helvetica-Bold', 8.5)
+cv.drawString(X0+5, yc-4, "DEFINIZIONE")
+yc2 = draw_text_wrapped(DEF1, X0+5, yc-18, 74, LH, "Helvetica", 9.5, BLACK)
+yc = yc - h_def_box - 8
+
+# Regole
+sf(NAVY); cv.setFont('Helvetica-Bold', 8.5)
+cv.drawString(X0, yc, "REGOLE E PROPRIETA")
+yc -= 14
+yc = draw_text_wrapped("1.  " + REG1, X0+4, yc, 74, LH, "Helvetica", 9.5, BLACK)
+yc -= 4
+yc = draw_text_wrapped("2.  " + REG2, X0+4, yc, 74, LH, "Helvetica", 9.5, BLACK)
+yc -= 4
+if REG3:
+    yc = draw_text_wrapped("3.  " + REG3, X0+4, yc, 74, LH, "Helvetica", 9.5, BLACK)
+    yc -= 4
+
+# Esempi
+sf(ORANGE); cv.setFont('Helvetica-Bold', 8.5)
+cv.drawString(X0, yc-4, "ESEMPI")
+yc -= 18
+sf(BLACK); cv.setFont('Helvetica', 9.5)
+cv.drawString(X0+4, yc, "a)  " + ES1); yc -= LH
+cv.drawString(X0+4, yc, "b)  " + ES2); yc -= LH
+cv.drawString(X0+4, yc, "c)  " + ES3)
+
+y = y - h_teoria - GAP
+
+# BLOCCO 2 — ESERCIZI A (3 esercizi)
+yc = blocco_apri(y, h_ese3, "2   ESERCIZI", ORANGE, ORANGEL)
+sf(BLACK); cv.setFont('Helvetica-Bold', 9.5)
+for i, ese in enumerate([ESE1, ESE2, ESE3]):
+    lett = chr(97+i)
+    cv.drawString(X0, yc, lett + ")  " + ese)
+    yc -= LH + 4
+    yc = linee_risposta(yc, 2)
+    yc -= 4
+
+y = y - h_ese3 - GAP
+cv.showPage()
+
+# ============================================================
+# PAGINA 2: ALTRI ESERCIZI + V/F + PROBLEMI
+# ============================================================
+header(TITOLO, "Scheda di matematica - Classe " + CLASSE)
+footer()
+y = TOP
+
+# BLOCCO 3 — ESERCIZI B (3 esercizi)
+yc = blocco_apri(y, h_ese3, "3   ALTRI ESERCIZI", GREEN, GREENL)
+sf(BLACK); cv.setFont('Helvetica-Bold', 9.5)
+for i, ese in enumerate([ESE4, ESE5, ESE6]):
+    lett = chr(97+i)
+    cv.drawString(X0, yc, lett + ")  " + ese)
+    yc -= LH + 4
+    yc = linee_risposta(yc, 2)
+    yc -= 4
+
+y = y - h_ese3 - GAP
+
+# BLOCCO 4 — VERO O FALSO
+yc = blocco_apri(y, h_vf, "4   VERO O FALSO?", TEAL, TEALL)
+sf(BLACK); cv.setFont('Helvetica', 9.5)
+for i, aff in enumerate([VF1, VF2, VF3, VF4]):
+    yr = yc - i*(LH+8)
+    cv.drawString(X0+4, yr, str(i+1) + ".  " + aff)
+    # Box V
+    ss((0.15,0.55,0.15)); cv.setLineWidth(0.9)
+    cv.rect(X1-68, yr-3, 28, 14, fill=0, stroke=1)
+    sf((0.15,0.55,0.15)); cv.setFont('Helvetica-Bold', 7.5)
+    cv.drawCentredString(X1-54, yr+6, "VERO")
+    # Box F
+    ss((0.65,0.10,0.10))
+    cv.rect(X1-36, yr-3, 28, 14, fill=0, stroke=1)
+    sf((0.65,0.10,0.10))
+    cv.drawCentredString(X1-22, yr+6, "FALSO")
+    cv.setFont('Helvetica', 9.5)
+
+y = y - h_vf - GAP
+
+# BLOCCO 5 — PROBLEMI
+yc = blocco_apri(y, h_prob, "5   PROBLEMI", BROWN, BROWNL)
+sf(BLACK)
+
+# Problema 1
+cv.setFont('Helvetica-Bold', 9.5)
+cv.drawString(X0, yc, "1.")
+cv.setFont('Helvetica', 9.5)
+yc2 = draw_text_wrapped(PROB1, X0+18, yc, 70, LH, "Helvetica", 9.5, BLACK)
+yc2 = draw_text_wrapped(PROB1B, X0+18, yc2-2, 70, LH, "Helvetica-Oblique", 9, (0.4,0.4,0.4))
+yc = yc2 - 4
+yc = linee_risposta(yc, 3)
+yc -= 10
+
+# Problema 2
+cv.setFont('Helvetica-Bold', 9.5)
+sf(BLACK); cv.drawString(X0, yc, "2.")
+cv.setFont('Helvetica', 9.5)
+yc2 = draw_text_wrapped(PROB2, X0+18, yc, 70, LH, "Helvetica", 9.5, BLACK)
+yc2 = draw_text_wrapped(PROB2B, X0+18, yc2-2, 70, LH, "Helvetica-Oblique", 9, (0.4,0.4,0.4))
+yc = yc2 - 4
+linee_risposta(yc, 3)
+
+cv.showPage()
+cv.save()
+print("PDF OK")
+"""
+
+    ok, errore, pdf_bytes = esegui_codice(codice)
+    if not ok:
+        return jsonify({"error": errore}), 500
+
+    return servi_pdf(pdf_bytes, nome)
+
+# ─── Scheda Matematica (route speciale) ───────────────────────────────────────
+
+@app.route("/genera_matematica", methods=["POST"])
+@login_required
+def genera_matematica():
+    d = request.get_json()
+    arg    = d.get("argomento", "Frazioni")
+    classe = d.get("classe", "Prima Media")
+
+    # STEP 1: DeepSeek genera SOLO i testi (JSON piccolo, 400 token)
+    # Prompt ricco per ottenere contenuti didattici di qualita
+    prompt_json = (
+        "Sei un esperto di didattica della matematica per la scuola media italiana." + chr(10) +
+        "Crea contenuti didattici RICCHI, PRECISI e COMPLETI su: " + arg + " (classe " + classe + ")." + chr(10) +
+        "I testi devono essere adatti a ragazzi di 11-13 anni, chiari, corretti matematicamente." + chr(10) +
+        "Rispondi SOLO con JSON valido. Nessun testo extra. Nessun markdown." + chr(10) + chr(10) +
+        "{" + chr(10) +
+        '  "titolo": "' + arg.upper()[:35] + '",' + chr(10) +
+        '  "def1": "Definizione precisa e completa di ' + arg + ' per ragazzi (max 88 char, no apostrofi)",' + chr(10) +
+        '  "reg1": "Prima proprieta o regola fondamentale di ' + arg + ' con spiegazione (max 88 char, no apostrofi)",' + chr(10) +
+        '  "reg2": "Seconda proprieta o regola di ' + arg + ' con esempio numerico (max 88 char, no apostrofi)",' + chr(10) +
+        '  "reg3": "Terza regola o caso speciale di ' + arg + ' (max 88 char, no apostrofi)",' + chr(10) +
+        '  "es1": "Esempio numerico completo 1: mostra il calcolo passo per passo (max 65 char)",' + chr(10) +
+        '  "es2": "Esempio numerico completo 2: altro caso con numeri diversi (max 65 char)",' + chr(10) +
+        '  "es3": "Esempio numerico completo 3: caso piu complesso (max 65 char)",' + chr(10) +
+        '  "ese1": "Calcola o risolvi: esercizio specifico su ' + arg + ' con numeri (max 78 char, no apostrofi)",' + chr(10) +
+        '  "ese2": "Calcola o risolvi: secondo esercizio su ' + arg + ' con numeri diversi (max 78 char, no apostrofi)",' + chr(10) +
+        '  "ese3": "Calcola o risolvi: terzo esercizio piu articolato su ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
+        '  "ese4": "Esercizio 4: applica una proprieta di ' + arg + ' con numeri specifici (max 78 char, no apostrofi)",' + chr(10) +
+        '  "ese5": "Esercizio 5: problema piu complesso che combina regole di ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
+        '  "ese6": "Esercizio 6: sfida con ' + arg + ' per chi ha capito bene (max 78 char, no apostrofi)",' + chr(10) +
+        '  "vf1": "Affermazione VERA specifica e precisa su ' + arg + ' con numeri (max 72 char, no apostrofi)",' + chr(10) +
+        '  "vf2": "Affermazione FALSA su ' + arg + ' con un errore comune dei ragazzi (max 72 char, no apostrofi)",' + chr(10) +
+        '  "vf3": "Affermazione VERA su una proprieta di ' + arg + ' (max 72 char, no apostrofi)",' + chr(10) +
+        '  "vf4": "Affermazione FALSA su ' + arg + ' che sembra vera ma non lo e (max 72 char, no apostrofi)",' + chr(10) +
+        '  "prob1": "Problema applicativo 1: contesto reale che usa ' + arg + ' con dati numerici (max 78 char, no apostrofi)",' + chr(10) +
+        '  "prob1b": "Seconda riga problema 1: chiedi calcolo specifico con i dati (max 78 char, no apostrofi)",' + chr(10) +
+        '  "prob2": "Problema applicativo 2: situazione concreta diversa che usa ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
+        '  "prob2b": "Seconda riga problema 2: chiedi il risultato con verifica (max 78 char, no apostrofi)"' + chr(10) +
+        "}"
+    )
+
+    try:
+        raw = ai(prompt_json, max_tok=1200)
+        print("JSON DeepSeek:", raw[:200])
+        # Pulizia
+        if "```" in raw:
+            raw = raw.split("```")[1]
+            if raw.startswith("json"): raw = raw[4:]
+            raw = raw.split("```")[0]
+        t = json.loads(raw.strip())
+    except Exception as e:
+        print("DeepSeek JSON fallito:", str(e))
+        # Fallback con testi generici
+        t = {
+            "titolo": arg.upper()[:35],
+            "def1": arg + " e un concetto fondamentale della matematica.",
+            "reg1": "Prima regola importante di " + arg + ".",
+            "reg2": "Seconda regola importante di " + arg + ".",
+            "es1": "Esempio 1: ...",
+            "es2": "Esempio 2: ...",
+            "es3": "Esempio 3: ...",
+            "ese1": "Esercizio 1: applica " + arg + ".",
+            "ese2": "Esercizio 2: calcola usando " + arg + ".",
+            "ese3": "Esercizio 3: risolvi con " + arg + ".",
+            "ese4": "Esercizio 4: usa le proprieta di " + arg + ".",
+            "ese5": "Esercizio 5: problema su " + arg + ".",
+            "ese6": "Esercizio 6: verifica con " + arg + ".",
+            "vf1": "La prima affermazione su " + arg + " e vera.",
+            "vf2": "La seconda affermazione su " + arg + " e falsa.",
+            "vf3": "La terza affermazione su " + arg + " e vera.",
+            "vf4": "La quarta affermazione su " + arg + " e vera.",
+            "prob1": "Problema 1: applica " + arg + " per risolvere.",
+            "prob1b": "Mostra il procedimento e scrivi il risultato.",
+            "prob2": "Problema 2: usa " + arg + " per trovare il risultato.",
+            "prob2b": "Mostra il procedimento e scrivi il risultato."
+        }
+
     # STEP 2: genera PDF con template Python hardcoded
     q = chr(34)
     bul = chr(9679)
