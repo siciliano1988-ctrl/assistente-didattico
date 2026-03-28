@@ -243,156 +243,124 @@ def scarica_pdf():
 @app.route("/genera_matematica", methods=["POST"])
 @login_required
 def genera_matematica():
-    """
-    Per la scheda matematica il flusso è diverso:
-    1. DeepSeek riceve il template e genera SOLO i dati in JSON
-    2. Il server sostituisce i dati nel template ed esegue
-    """
     d = request.get_json()
-    arg    = d.get("argomento","Frazioni")
-    classe = d.get("classe","Prima Media")
+    arg    = d.get("argomento", "Frazioni")
+    classe = d.get("classe", "Prima Media")
 
     template_path = PROTO_DIR / "template_matematica.py"
     if not template_path.exists():
-        return jsonify({"error":"Template matematica non trovato"}), 404
+        return jsonify({"error": "Template matematica non trovato"}), 404
 
     template = template_path.read_text(encoding="utf-8")
 
-    # Chiedi a DeepSeek SOLO i dati, non il codice
-    prompt_json = f"""Sei un esperto di matematica per la scuola media.
-Devo adattare una scheda di matematica all'argomento: {arg} (classe {classe}).
+    # Estrai SOLO la parte statica (helper functions + header/footer)
+    # Le funzioni degli esercizi le riscrive DeepSeek da zero
+    idx_blocchi = template.find("# ============" + "=" * 60 + "\n# BLOCCHI")
+    if idx_blocchi == -1:
+        idx_blocchi = template.find("# BLOCCHI")
+    parte_statica = template[:idx_blocchi] if idx_blocchi > 0 else template[:7800]
 
-Rispondi ESCLUSIVAMENTE con questo JSON (nessun testo prima o dopo, nessun markdown):
-{{
-  "titolo": "titolo breve in maiuscolo per {arg} (max 30 caratteri)",
-  "sottotitolo": "breve descrizione di {arg} (max 50 caratteri)",
-  "spiegazione_1": "prima riga spiegazione teorica di {arg} (max 88 caratteri, no apostrofi)",
-  "spiegazione_2": "seconda riga spiegazione di {arg} (max 105 caratteri, no apostrofi)",
-  "vf_1": "affermazione vera o falsa su {arg} (max 72 caratteri, no apostrofi)",
-  "vf_2": "seconda affermazione su {arg} (max 72 caratteri, no apostrofi)",
-  "vf_3": "terza affermazione su {arg} (max 72 caratteri, no apostrofi)",
-  "vf_4": "quarta affermazione su {arg} (max 72 caratteri, no apostrofi)",
-  "problema_1a": "testo problema 1 su {arg} (max 80 caratteri, no apostrofi)",
-  "problema_1b": "seconda riga problema 1 (max 80 caratteri, no apostrofi)",
-  "problema_2a": "testo problema 2 su {arg} (max 80 caratteri, no apostrofi)",
-  "problema_2b": "seconda riga problema 2 (max 80 caratteri, no apostrofi)"
-}}"""
-
-    try:
-        dati_raw = ai(prompt_json, max_tok=500)
-
-        # Pulizia JSON
-        if "```" in dati_raw:
-            dati_raw = dati_raw.split("```")[1]
-            if dati_raw.startswith("json"):
-                dati_raw = dati_raw[4:]
-            dati_raw = dati_raw.split("```")[0]
-        dati_raw = dati_raw.strip()
-
-        dati = json.loads(dati_raw)
-
-    except Exception as e:
-        # Fallback con dati minimi
-        dati = {
-            "titolo": arg.upper()[:30],
-            "sottotitolo": "Scheda di matematica",
-            "spiegazione_1": "Studia " + arg + " seguendo gli esempi.",
-            "spiegazione_2": "Esegui gli esercizi con attenzione e ordine.",
-            "vf_1": "La prima affermazione e vera.",
-            "vf_2": "La seconda affermazione e falsa.",
-            "vf_3": "La terza affermazione e vera.",
-            "vf_4": "La quarta affermazione e vera.",
-            "problema_1a": "Risolvi il primo problema su " + arg + ".",
-            "problema_1b": "Scrivi il procedimento e il risultato.",
-            "problema_2a": "Risolvi il secondo problema su " + arg + ".",
-            "problema_2b": "Scrivi il procedimento e il risultato."
-        }
-
-    # Sostituisci i dati nel template
-    q  = chr(34)
-    ap = chr(39)
-    bu = chr(9679)
-
-    codice = template
-
-    # Fix percorso output
-    codice = codice.replace(
-        q + "/mnt/user-data/outputs/scheda_matematica.pdf" + q,
-        q + "/tmp/out.pdf" + q
+    # Fix percorso output nella parte statica
+    parte_statica = parte_statica.replace(
+        '"/mnt/user-data/outputs/scheda_matematica.pdf"',
+        '"/tmp/out.pdf"'
     )
-    codice = codice.replace(
+    parte_statica = parte_statica.replace(
         'os.makedirs("/mnt/user-data/outputs",exist_ok=True)',
         'os.makedirs("/tmp",exist_ok=True)'
     )
 
-    # Titolo header
-    codice = codice.replace(
-        'cv.drawString(86,H-32,"LE FRAZIONI")',
-        'cv.drawString(86,H-32,"' + dati["titolo"] + '")'
-    )
+    # Chiedi a DeepSeek di riscrivere SOLO le funzioni degli esercizi
+    prompt = f"""Sei un esperto di matematica per la scuola media italiana.
+Devi creare una scheda didattica COMPLETAMENTE NUOVA su "{arg}" per classe {classe}.
 
-    # Sottotitolo header
-    codice = codice.replace(
-        'cv.drawString(88,H-50,"Scheda di matematica  ' + chr(183) + '  esercita passo dopo passo")',
-        'cv.drawString(88,H-50,"' + dati["sottotitolo"] + ' - Classe ' + classe + '")'
-    )
+Hai a disposizione queste funzioni grafiche gia pronte (NON ridefinirle):
+- block_open(cv, y_top, h, title, cb, cl) -> yc
+- frac(cv, cx, cy, num, den, fsz, col)
+- pizza(cv, cx, cy, r, num, den, fc)
+- write_lines(cv, cx, cy, col)
+- draw_header(cv), draw_footer(cv)
+- sf(cv, colore), ss(cv, colore)
+- Colori: NAVY, NAVYL, ORANGE, ORANGEL, GREEN, GREENL, PURPLE, PURPLEL,
+  RED, REDL, TEAL, TEALL, BROWN, BROWNL, GRAY, GRAYL, GOLD, WHITE, BLACK
+- Layout: ML=28, BW=539.28, X0=38, X1=557.28, CW=519.28, TOP=737.89, GAP=7, TH=26
 
-    # Spiegazione teorica riga 1
-    codice = codice.replace(
-        'cv.drawString(X0,yc-2,"Una FRAZIONE indica quante PARTI prendo di un intero diviso in PARTI UGUALI.")',
-        'cv.drawString(X0,yc-2,"' + dati["spiegazione_1"] + '")'
-    )
+REGOLE CRITICHE:
+1. Rispondi SOLO con codice Python puro, zero testo, zero markdown, zero backtick
+2. NON ridefinire le funzioni elencate sopra
+3. USA SOLO stringhe normali (VIETATE f-string con variabili nelle drawString)
+4. PAG1 max 738pt totali, PAG2+ max 718pt totali
+5. OUT e TOP sono gia definiti, non ridefinirli
+6. Ogni blocco: usa block_open() per il titolo colorato con griglia
 
-    # Spiegazione teorica riga 2
-    codice = codice.replace(
-        'cv.drawString(X0,yc-16,"Il numero IN ALTO e' + ap + ' il NUMERATORE (parti prese), quello IN BASSO e' + ap + ' il DENOMINATORE (parti totali).")',
-        'cv.drawString(X0,yc-16,"' + dati["spiegazione_2"] + '")'
-    )
+STRUTTURA OBBLIGATORIA (3 pagine, tutto su "{arg}"):
 
-    # Titolo blocco teoria
-    codice = codice.replace(
-        '"' + bu + ' 1   CHE COS' + ap + 'E' + ap + ' UNA FRAZIONE?"',
-        '"' + bu + ' 1   CHE COS' + ap + 'E' + ap + ' ' + dati["titolo"] + '?"'
-    )
+PAG1 (no footer, max 738pt):
+- def b_teoria(cv, y_top): h=200
+  * Spiega "{arg}" con testo chiaro per ragazzi di 11-13 anni
+  * Definizione, regola principale, esempio numerico visivo
+  * Usa box colorati, testi con cv.drawString(), esempi grafici
+- def b_esercizio1(cv, y_top): h adeguata
+  * Primo esercizio visivo/grafico appropriato per "{arg}"
 
-    # Affermazioni Vero/Falso
-    vf_originali = [
-        '2/4 e 1/2 sono frazioni equivalenti perche' + ap + ' 2x2 = 4x1.',
-        'Con lo stesso numeratore, la frazione con denominatore maggiore e' + ap + ' la piu' + ap + ' grande.',
-        'Per semplificare 6/8 si divide per 2: si ottiene 3/4.',
-        'La frazione 3/7 e' + ap + ' maggiore di 3/9 perche' + ap + ' 7 e' + ap + ' minore di 9.',
-    ]
-    vf_nuovi = [dati["vf_1"], dati["vf_2"], dati["vf_3"], dati["vf_4"]]
-    for orig, nuovo in zip(vf_originali, vf_nuovi):
-        codice = codice.replace('"' + orig + '"', '"' + nuovo + '"')
+PAG2 (con footer, max 718pt):
+- def b_esercizio2(cv, y_top): esercizio pratico su "{arg}"
+- def b_esercizio3(cv, y_top): esercizio pratico su "{arg}"
+- def b_esercizio4(cv, y_top): esercizio pratico su "{arg}"
 
-    # Problemi
-    prob_originali = [
-        ('Sara ha mangiato 2/8 di una torta, Luca ne ha mangiata 1/4.',
-         'Chi ne ha mangiata di piu' + ap + '? (Suggerimento: trova la fraz. equiv. di 1/4 con den. 8.)'),
-        ('Una bottiglia e' + ap + ' piena per 3/4. Ne bevo 1/2.',
-         'Quanta acqua rimane? (Suggerimento: trova il denominatore comune 4.)'),
-    ]
-    prob_nuovi = [
-        (dati["problema_1a"], dati["problema_1b"]),
-        (dati["problema_2a"], dati["problema_2b"]),
-    ]
-    for (orig_a, orig_b), (nuovo_a, nuovo_b) in zip(prob_originali, prob_nuovi):
-        codice = codice.replace('"' + orig_a + '"', '"' + nuovo_a + '"')
-        codice = codice.replace('"' + orig_b + '"', '"' + nuovo_b + '"')
+PAG3 (con footer, max 718pt):
+- def b_vero_falso(cv, y_top): 4-6 affermazioni V/F su "{arg}"
+- def b_problemi(cv, y_top): 2 problemi applicativi su "{arg}"
 
-    # Aggiungi chiamata generate()
-    if 'if __name__' in codice:
-        idx = codice.find('if __name__')
-        codice = codice[:idx] + 'generate()\n'
-    elif codice.count('generate()') < 2:
-        codice += '\ngenerate()\n'
+def generate():
+  cv = canvas.Canvas(OUT, pagesize=A4)
+  draw_header(cv)
+  y = TOP
+  y = b_teoria(cv, y)
+  y = b_esercizio1(cv, y)
+  cv.showPage()
+  draw_header(cv); draw_footer(cv)
+  y = TOP
+  y = b_esercizio2(cv, y)
+  y = b_esercizio3(cv, y)
+  y = b_esercizio4(cv, y)
+  cv.showPage()
+  draw_header(cv); draw_footer(cv)
+  y = TOP
+  y = b_vero_falso(cv, y)
+  y = b_problemi(cv, y)
+  cv.showPage()
+  cv.save()
 
+IMPORTANTE: tutto il contenuto deve riguardare "{arg}".
+NON usare frazioni, pizze o contenuti delle frazioni se non richiesto.
+Crea contenuti originali e didatticamente corretti per "{arg}"."""
+
+    try:
+        funzioni_esercizi = ai(prompt, max_tok=4096)
+
+        # Pulizia markdown
+        if "```python" in funzioni_esercizi:
+            funzioni_esercizi = funzioni_esercizi.split("```python")[1].split("```")[0].strip()
+        elif "```" in funzioni_esercizi:
+            funzioni_esercizi = funzioni_esercizi.split("```")[1].split("```")[0].strip()
+
+    except Exception as e:
+        return jsonify({"error": f"DeepSeek non risponde: {str(e)}"}), 500
+
+    # Componi il codice finale
+    sep = chr(10) + chr(10)
+    codice = parte_statica + sep + funzioni_esercizi
+
+    # Assicura generate() venga chiamata
+    if "def generate()" in codice and codice.count("generate()") < 2:
+        codice += chr(10) + "generate()" + chr(10)
     ok, errore, pdf_bytes = esegui_codice(codice)
     if not ok:
         return jsonify({"error": errore}), 500
 
     return servi_pdf(pdf_bytes, "Scheda_Matematica_" + arg)
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
