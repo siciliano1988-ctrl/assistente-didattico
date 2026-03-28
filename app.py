@@ -248,38 +248,40 @@ def genera_matematica():
     classe = d.get("classe", "Prima Media")
 
     # STEP 1: DeepSeek genera SOLO i testi (JSON piccolo, 400 token)
+    # Prompt ricco per ottenere contenuti didattici di qualita
     prompt_json = (
-        "Rispondi SOLO con JSON valido. Nessun testo extra. Nessun markdown." + chr(10) +
-        "Crea contenuti didattici su " + chr(34) + arg + chr(34) +
-        " per classe " + classe + "." + chr(10) +
-        "JSON richiesto:" + chr(10) +
+        "Sei un esperto di didattica della matematica per la scuola media italiana." + chr(10) +
+        "Crea contenuti didattici RICCHI, PRECISI e COMPLETI su: " + arg + " (classe " + classe + ")." + chr(10) +
+        "I testi devono essere adatti a ragazzi di 11-13 anni, chiari, corretti matematicamente." + chr(10) +
+        "Rispondi SOLO con JSON valido. Nessun testo extra. Nessun markdown." + chr(10) + chr(10) +
         "{" + chr(10) +
         '  "titolo": "' + arg.upper()[:35] + '",' + chr(10) +
-        '  "def1": "Definizione breve di ' + arg + ' (max 80 char, no apostrofi)",' + chr(10) +
-        '  "reg1": "Prima regola/proprieta di ' + arg + ' (max 80 char, no apostrofi)",' + chr(10) +
-        '  "reg2": "Seconda regola di ' + arg + ' (max 80 char, no apostrofi)",' + chr(10) +
-        '  "es1": "Esempio numerico 1 su ' + arg + ' (max 60 char)",' + chr(10) +
-        '  "es2": "Esempio numerico 2 su ' + arg + ' (max 60 char)",' + chr(10) +
-        '  "es3": "Esempio numerico 3 su ' + arg + ' (max 60 char)",' + chr(10) +
-        '  "ese1": "Consegna esercizio 1 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
-        '  "ese2": "Consegna esercizio 2 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
-        '  "ese3": "Consegna esercizio 3 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
-        '  "ese4": "Consegna esercizio 4 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
-        '  "ese5": "Consegna esercizio 5 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
-        '  "ese6": "Consegna esercizio 6 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
-        '  "vf1": "Affermazione 1 su ' + arg + ' vera o falsa (max 70 char, no apostrofi)",' + chr(10) +
-        '  "vf2": "Affermazione 2 su ' + arg + ' (max 70 char, no apostrofi)",' + chr(10) +
-        '  "vf3": "Affermazione 3 su ' + arg + ' (max 70 char, no apostrofi)",' + chr(10) +
-        '  "vf4": "Affermazione 4 su ' + arg + ' (max 70 char, no apostrofi)",' + chr(10) +
-        '  "prob1": "Testo problema 1 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
-        '  "prob1b": "Seconda riga problema 1 (max 75 char, no apostrofi)",' + chr(10) +
-        '  "prob2": "Testo problema 2 su ' + arg + ' (max 75 char, no apostrofi)",' + chr(10) +
-        '  "prob2b": "Seconda riga problema 2 (max 75 char, no apostrofi)"' + chr(10) +
+        '  "def1": "Definizione precisa e completa di ' + arg + ' per ragazzi (max 88 char, no apostrofi)",' + chr(10) +
+        '  "reg1": "Prima proprieta o regola fondamentale di ' + arg + ' con spiegazione (max 88 char, no apostrofi)",' + chr(10) +
+        '  "reg2": "Seconda proprieta o regola di ' + arg + ' con esempio numerico (max 88 char, no apostrofi)",' + chr(10) +
+        '  "reg3": "Terza regola o caso speciale di ' + arg + ' (max 88 char, no apostrofi)",' + chr(10) +
+        '  "es1": "Esempio numerico completo 1: mostra il calcolo passo per passo (max 65 char)",' + chr(10) +
+        '  "es2": "Esempio numerico completo 2: altro caso con numeri diversi (max 65 char)",' + chr(10) +
+        '  "es3": "Esempio numerico completo 3: caso piu complesso (max 65 char)",' + chr(10) +
+        '  "ese1": "Calcola o risolvi: esercizio specifico su ' + arg + ' con numeri (max 78 char, no apostrofi)",' + chr(10) +
+        '  "ese2": "Calcola o risolvi: secondo esercizio su ' + arg + ' con numeri diversi (max 78 char, no apostrofi)",' + chr(10) +
+        '  "ese3": "Calcola o risolvi: terzo esercizio piu articolato su ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
+        '  "ese4": "Esercizio 4: applica una proprieta di ' + arg + ' con numeri specifici (max 78 char, no apostrofi)",' + chr(10) +
+        '  "ese5": "Esercizio 5: problema piu complesso che combina regole di ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
+        '  "ese6": "Esercizio 6: sfida con ' + arg + ' per chi ha capito bene (max 78 char, no apostrofi)",' + chr(10) +
+        '  "vf1": "Affermazione VERA specifica e precisa su ' + arg + ' con numeri (max 72 char, no apostrofi)",' + chr(10) +
+        '  "vf2": "Affermazione FALSA su ' + arg + ' con un errore comune dei ragazzi (max 72 char, no apostrofi)",' + chr(10) +
+        '  "vf3": "Affermazione VERA su una proprieta di ' + arg + ' (max 72 char, no apostrofi)",' + chr(10) +
+        '  "vf4": "Affermazione FALSA su ' + arg + ' che sembra vera ma non lo e (max 72 char, no apostrofi)",' + chr(10) +
+        '  "prob1": "Problema applicativo 1: contesto reale che usa ' + arg + ' con dati numerici (max 78 char, no apostrofi)",' + chr(10) +
+        '  "prob1b": "Seconda riga problema 1: chiedi calcolo specifico con i dati (max 78 char, no apostrofi)",' + chr(10) +
+        '  "prob2": "Problema applicativo 2: situazione concreta diversa che usa ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
+        '  "prob2b": "Seconda riga problema 2: chiedi il risultato con verifica (max 78 char, no apostrofi)"' + chr(10) +
         "}"
     )
 
     try:
-        raw = ai(prompt_json, max_tok=600)
+        raw = ai(prompt_json, max_tok=1200)
         print("JSON DeepSeek:", raw[:200])
         # Pulizia
         if "```" in raw:
@@ -381,20 +383,30 @@ TOP = H-104
 header()
 y = TOP
 
-# Blocco 1 - Teoria
-yc = blocco(y, 200, """ + q + bul + " 1   " + t["titolo"] + q + """, NAVY, NAVYL)
-sf(BLACK); cv.setFont('Helvetica-Bold',10.5)
-cv.drawString(X0, yc-2, """ + q + t["def1"] + q + """)
-cv.setFont('Helvetica',9.5)
-cv.drawString(X0, yc-18, """ + q + t["reg1"] + q + """)
-cv.drawString(X0, yc-34, """ + q + t["reg2"] + q + """)
+# Blocco 1 - Teoria (h=230 per contenere anche reg3)
+yc = blocco(y, 230, """ + q + bul + " 1   " + t["titolo"] + q + """, NAVY, NAVYL)
+# Box definizione
+cv.setFillColorRGB(0.93,0.95,1.0)
+cv.roundRect(X0, yc-38, BW-20, 34, 5, fill=1, stroke=0)
 sf(NAVY); cv.setFont('Helvetica-Bold',9)
-cv.drawString(X0, yc-55, "ESEMPI:")
+cv.drawString(X0+6, yc-8, "DEFINIZIONE")
 sf(BLACK); cv.setFont('Helvetica',9.5)
-cv.drawString(X0+10, yc-70, """ + q + "a)  " + t["es1"] + q + """)
-cv.drawString(X0+10, yc-86, """ + q + "b)  " + t["es2"] + q + """)
-cv.drawString(X0+10, yc-102, """ + q + "c)  " + t["es3"] + q + """)
-y = y - 200 - GAP
+cv.drawString(X0+6, yc-22, """ + q + t["def1"] + q + """)
+# Regole
+sf(NAVY); cv.setFont('Helvetica-Bold',9)
+cv.drawString(X0, yc-52, "REGOLE FONDAMENTALI")
+sf(BLACK); cv.setFont('Helvetica',9.5)
+cv.drawString(X0+6, yc-66, """ + q + "1.  " + t["reg1"] + q + """)
+cv.drawString(X0+6, yc-82, """ + q + "2.  " + t["reg2"] + q + """)
+cv.drawString(X0+6, yc-98, """ + q + "3.  " + t.get("reg3","") + q + """)
+# Esempi
+sf(ORANGE); cv.setFont('Helvetica-Bold',9)
+cv.drawString(X0, yc-118, "ESEMPI:")
+sf(BLACK); cv.setFont('Helvetica',9.5)
+cv.drawString(X0+6, yc-132, """ + q + "a)  " + t["es1"] + q + """)
+cv.drawString(X0+6, yc-148, """ + q + "b)  " + t["es2"] + q + """)
+cv.drawString(X0+6, yc-164, """ + q + "c)  " + t["es3"] + q + """)
+y = y - 230 - GAP
 
 # Blocco 2 - Esercizi
 h2 = 160
