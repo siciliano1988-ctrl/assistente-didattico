@@ -84,14 +84,23 @@ Palette: {pal}
 Output: /tmp/output_scheda.pdf"""
 
     elif tipo_id == "scheda_matematica":
-        template = leggi_template("template_matematica.py")
         return f"""{SYSTEM_BASE}
-TEMPLATE: {template}
-REGOLA: sostituire SOLO i contenuti. MAI toccare costanti/funzioni.
-RICHIESTA: Scheda Matematica per classe {classe}, argomento: {argomento}
-{'Note: ' + note if note else ''}
-Output: /tmp/output_scheda.pdf"""
+RICHIESTA: Crea una Scheda di Matematica con ReportLab per classe {classe}.
+Argomento: {argomento}
 
+STRUTTURA SEMPLICE (massimo 120 righe):
+- Import: from reportlab.lib.pagesizes import A4; from reportlab.pdfgen import canvas; import os
+- os.makedirs('/tmp', exist_ok=True)
+- W, H = A4; OUT = "/tmp/output_scheda.pdf"
+- cv = canvas.Canvas(OUT, pagesize=A4)
+- Intestazione semplice con titolo e box dati studente
+- 3-4 esercizi su frazioni con spazio per risposta
+- cv.save()
+
+NON usare funzioni complesse. NON usare f-string con variabili nei titoli.
+USA stringhe normali per i titoli: cv.drawString(x,y,"1. Titolo esercizio")
+{"Note: " + note if note else ""}
+Output: /tmp/output_scheda.pdf"""
     elif tipo_id == "mappa_mentale":
         template = leggi_template("template_mappa_mentale.py")
         return f"""{SYSTEM_BASE}
@@ -186,7 +195,7 @@ def genera():
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=4096,
+            max_tokens=8000,
             temperature=0.2
         )
         codice = response.choices[0].message.content.strip()
