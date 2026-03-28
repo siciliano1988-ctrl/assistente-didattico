@@ -29,10 +29,18 @@ REGOLE ASSOLUTE:
 5. Font disponibili: Helvetica, Helvetica-Bold, Helvetica-Oblique, Helvetica-BoldOblique
 6. Lingua: italiano sempre
 7. Stile: professionale, adatto a stampa A4
-8. IMPORTANTE: il codice deve essere eseguibile direttamente senza chiamare funzioni main() o generate()
-   Scrivi il codice in modo lineare, non dentro funzioni, oppure chiama la funzione alla fine
-9. SEMPRE aggiungere: import os; os.makedirs('/tmp', exist_ok=True)
-   come seconda riga dopo gli import
+8. Il codice deve essere eseguibile direttamente. Se usi funzioni, chiamale alla fine.
+9. SEMPRE aggiungere: import os; os.makedirs('/tmp', exist_ok=True) dopo gli import
+10. CRITICO: nelle f-string usa SOLO caratteri ASCII standard.
+    VIETATO usare: bullet ● • ★ ✓ ✗ frecce → ← ↑ ↓ e qualsiasi unicode non-ASCII dentro f-string.
+    USA INVECE: asterisco * trattino - maggiore > minore < e solo lettere/numeri normali.
+    ESEMPIO SBAGLIATO: f"● {num_blocco} TITOLO"
+    ESEMPIO GIUSTO:    f"* {num_blocco} TITOLO"
+    ESEMPIO SBAGLIATO: f"→ {valore}"
+    ESEMPIO GIUSTO:    f"-> {valore}"
+    I caratteri speciali puoi usarli SOLO nelle stringhe normali (non f-string):
+    cv.drawString(x, y, "● Titolo")  -- questo va bene
+    title = f"● {num}"  -- questo causa SyntaxError, VIETATO
 """
 
 def build_prompt(tipo_id, materia, argomento, classe, opzioni):
@@ -205,19 +213,36 @@ def genera():
                 "import os\nos.makedirs('/tmp', exist_ok=True)"
             )
 
-        # Sostituisci caratteri speciali che causano SyntaxError nelle f-string
-        def fix_fstring(line):
+        # Pulizia aggressiva: sostituisce caratteri non-ASCII in TUTTE le righe
+        # non solo nelle f-string, per sicurezza
+        sostituzioni = {
+            '●': '*',   # ●
+            '•': '-',   # •
+            '→': '->',  # →
+            '←': '<-',  # ←
+            '↑': '^',   # ↑
+            '↓': 'v',   # ↓
+            '✓': 'OK',  # ✓
+            '✗': 'NO',  # ✗
+            '★': '*',   # ★
+            '☆': '*',   # ☆
+            '▶': '>',   # ▶
+            '◀': '<',   # ◀
+            '✔': 'OK',  # ✔
+            '✘': 'NO',  # ✘
+            '·': '-',   # ·
+            '—': '--',  # —
+            '–': '-',   # –
+        }
+
+        def pulisci_riga(line):
+            # Pulisce solo le righe che contengono f-string
             if 'f"' in line or "f'" in line:
-                line = line.replace('●', '*')
-                line = line.replace('•', '-')
-                line = line.replace('→', '->')
-                line = line.replace('←', '<-')
-                line = line.replace('✓', 'OK')
-                line = line.replace('✗', 'NO')
-                line = line.replace('★', '*')
+                for char, sostituto in sostituzioni.items():
+                    line = line.replace(char, sostituto)
             return line
 
-        righe_pulite = [fix_fstring(r) for r in codice.split(chr(10))]
+        righe_pulite = [pulisci_riga(r) for r in codice.split(chr(10))]
         codice = chr(10).join(righe_pulite)
 
         return jsonify({"success": True, "codice": codice})
