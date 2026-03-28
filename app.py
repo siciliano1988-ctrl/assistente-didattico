@@ -28,6 +28,18 @@ def ai(prompt, max_tok=4096):
         temperature=0.2
     ).choices[0].message.content.strip()
 
+def ai_ragiona(prompt, max_tok=8000):
+    """Usa deepseek-reasoner: ragiona prima di rispondere. Piu lento ma molto piu preciso."""
+    client = OpenAI(api_key=DEEPSEEK_KEY, base_url="https://api.deepseek.com")
+    resp = client.chat.completions.create(
+        model="deepseek-reasoner",
+        messages=[{"role":"user","content":prompt}],
+        max_tokens=max_tok
+    )
+    # deepseek-reasoner restituisce il ragionamento + la risposta finale
+    # noi vogliamo solo la risposta finale (content)
+    return resp.choices[0].message.content.strip()
+
 def esegui_codice(codice):
     """Esegue codice Python e restituisce (ok, errore, pdf_bytes)"""
     pdf_path = "/tmp/out.pdf"
@@ -248,40 +260,46 @@ def genera_matematica():
     classe = d.get("classe", "Prima Media")
 
     # STEP 1: DeepSeek genera SOLO i testi (JSON piccolo, 400 token)
-    # Prompt ricco per ottenere contenuti didattici di qualita
+    # Usa deepseek-reasoner per contenuti didattici di alta qualita
     prompt_json = (
         "Sei un esperto di didattica della matematica per la scuola media italiana." + chr(10) +
+        "Prima di rispondere, ragiona attentamente su:" + chr(10) +
+        "- Qual e il livello giusto per classe " + classe + "?" + chr(10) +
+        "- Quali sono i concetti chiave di " + arg + " da spiegare?" + chr(10) +
+        "- Quali esercizi sono didatticamente efficaci e progressivi?" + chr(10) +
+        "- Quali errori comuni fanno i ragazzi su " + arg + "?" + chr(10) +
+        "- Come formulare problemi concreti e realistici?" + chr(10) + chr(10) +
         "Crea contenuti didattici RICCHI, PRECISI e COMPLETI su: " + arg + " (classe " + classe + ")." + chr(10) +
         "I testi devono essere adatti a ragazzi di 11-13 anni, chiari, corretti matematicamente." + chr(10) +
         "Rispondi SOLO con JSON valido. Nessun testo extra. Nessun markdown." + chr(10) + chr(10) +
         "{" + chr(10) +
         '  "titolo": "' + arg.upper()[:35] + '",' + chr(10) +
-        '  "def1": "Definizione precisa e completa di ' + arg + ' per ragazzi (max 88 char, no apostrofi)",' + chr(10) +
-        '  "reg1": "Prima proprieta o regola fondamentale di ' + arg + ' con spiegazione (max 88 char, no apostrofi)",' + chr(10) +
-        '  "reg2": "Seconda proprieta o regola di ' + arg + ' con esempio numerico (max 88 char, no apostrofi)",' + chr(10) +
-        '  "reg3": "Terza regola o caso speciale di ' + arg + ' (max 88 char, no apostrofi)",' + chr(10) +
-        '  "es1": "Esempio numerico completo 1: mostra il calcolo passo per passo (max 65 char)",' + chr(10) +
-        '  "es2": "Esempio numerico completo 2: altro caso con numeri diversi (max 65 char)",' + chr(10) +
-        '  "es3": "Esempio numerico completo 3: caso piu complesso (max 65 char)",' + chr(10) +
-        '  "ese1": "Calcola o risolvi: esercizio specifico su ' + arg + ' con numeri (max 78 char, no apostrofi)",' + chr(10) +
-        '  "ese2": "Calcola o risolvi: secondo esercizio su ' + arg + ' con numeri diversi (max 78 char, no apostrofi)",' + chr(10) +
-        '  "ese3": "Calcola o risolvi: terzo esercizio piu articolato su ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
-        '  "ese4": "Esercizio 4: applica una proprieta di ' + arg + ' con numeri specifici (max 78 char, no apostrofi)",' + chr(10) +
-        '  "ese5": "Esercizio 5: problema piu complesso che combina regole di ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
-        '  "ese6": "Esercizio 6: sfida con ' + arg + ' per chi ha capito bene (max 78 char, no apostrofi)",' + chr(10) +
-        '  "vf1": "Affermazione VERA specifica e precisa su ' + arg + ' con numeri (max 72 char, no apostrofi)",' + chr(10) +
-        '  "vf2": "Affermazione FALSA su ' + arg + ' con un errore comune dei ragazzi (max 72 char, no apostrofi)",' + chr(10) +
-        '  "vf3": "Affermazione VERA su una proprieta di ' + arg + ' (max 72 char, no apostrofi)",' + chr(10) +
-        '  "vf4": "Affermazione FALSA su ' + arg + ' che sembra vera ma non lo e (max 72 char, no apostrofi)",' + chr(10) +
-        '  "prob1": "Problema applicativo 1: contesto reale che usa ' + arg + ' con dati numerici (max 78 char, no apostrofi)",' + chr(10) +
-        '  "prob1b": "Seconda riga problema 1: chiedi calcolo specifico con i dati (max 78 char, no apostrofi)",' + chr(10) +
-        '  "prob2": "Problema applicativo 2: situazione concreta diversa che usa ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
-        '  "prob2b": "Seconda riga problema 2: chiedi il risultato con verifica (max 78 char, no apostrofi)"' + chr(10) +
+        '  "def1": "Definizione matematicamente precisa con esempio numerico esplicito (max 90 char, no apostrofi)",' + chr(10) +
+        '  "reg1": "Regola 1 con procedimento e numeri reali es. 2+3=5 oppure 2x4=8 (max 90 char, no apostrofi)",' + chr(10) +
+        '  "reg2": "Regola 2: caso specifico con numeri e verifica del risultato (max 90 char, no apostrofi)",' + chr(10) +
+        '  "reg3": "Caso speciale o eccezione importante: cosa non fare con esempi (max 90 char, no apostrofi)",' + chr(10) +
+        '  "es1": "Esempio 1 COMPLETO con numeri reali: scrivi tutti i passaggi es. 3x4=12 (max 68 char)",' + chr(10) +
+        '  "es2": "Esempio 2 COMPLETO numeri piu grandi: mostra calcolo intermedio (max 68 char)",' + chr(10) +
+        '  "es3": "Esempio 3 caso avanzato con piu passaggi e verifica finale (max 68 char)",' + chr(10) +
+        '  "ese1": "Calcola [operazione specifica con numeri reali inseriti qui] (max 82 char, no apostrofi)",' + chr(10) +
+        '  "ese2": "Calcola [operazione diversa con numeri diversi inseriti qui] (max 82 char, no apostrofi)",' + chr(10) +
+        '  "ese3": "Risolvi [esercizio con piu passaggi e numeri specifici inseriti] (max 82 char, no apostrofi)",' + chr(10) +
+        '  "ese4": "Applica la regola a questi numeri [inserisci numeri specifici] (max 82 char, no apostrofi)",' + chr(10) +
+        '  "ese5": "Verifica se [affermazione con numeri] e corretta mostrando il calcolo (max 82 char, no apostrofi)",' + chr(10) +
+        '  "ese6": "Sfida: [problema articolato con piu dati numerici inseriti qui] (max 82 char, no apostrofi)",' + chr(10) +
+        '  "vf1": "Affermazione VERA con numeri reali inseriti: es. 4 elevato a 2 vale 16 (max 74 char, no apostrofi)",' + chr(10) +
+        '  "vf2": "Affermazione FALSA errore tipico dei ragazzi con numeri specifici (max 74 char, no apostrofi)",' + chr(10) +
+        '  "vf3": "Affermazione VERA su proprieta con verifica numerica inclusa (max 74 char, no apostrofi)",' + chr(10) +
+        '  "vf4": "Affermazione FALSA trabocchetto frequente con numeri che ingannano (max 74 char, no apostrofi)",' + chr(10) +
+        '  "prob1": "Marco ha [numero] [oggetti]. Deve [azione che usa ' + arg + '] con [dati]. (max 82 char, no apostrofi)",' + chr(10) +
+        '  "prob1b": "Quanti/Quanto [risultato specifico richiesto]? Scrivi il procedimento completo. (max 82 char, no apostrofi)",' + chr(10) +
+        '  "prob2": "Una [cosa concreta] ha [dati numerici]. Usando ' + arg + ' calcola [quesito]. (max 82 char, no apostrofi)",' + chr(10) +
+        '  "prob2b": "Mostra il calcolo passo per passo e verifica il risultato ottenuto. (max 82 char, no apostrofi)"' + chr(10) +
         "}"
     )
 
     try:
-        raw = ai(prompt_json, max_tok=1200)
+        raw = ai_ragiona(prompt_json, max_tok=4000)
         print("JSON DeepSeek:", raw[:200])
         # Pulizia
         if "```" in raw:
@@ -651,40 +669,46 @@ def genera_matematica():
     classe = d.get("classe", "Prima Media")
 
     # STEP 1: DeepSeek genera SOLO i testi (JSON piccolo, 400 token)
-    # Prompt ricco per ottenere contenuti didattici di qualita
+    # Usa deepseek-reasoner per contenuti didattici di alta qualita
     prompt_json = (
         "Sei un esperto di didattica della matematica per la scuola media italiana." + chr(10) +
+        "Prima di rispondere, ragiona attentamente su:" + chr(10) +
+        "- Qual e il livello giusto per classe " + classe + "?" + chr(10) +
+        "- Quali sono i concetti chiave di " + arg + " da spiegare?" + chr(10) +
+        "- Quali esercizi sono didatticamente efficaci e progressivi?" + chr(10) +
+        "- Quali errori comuni fanno i ragazzi su " + arg + "?" + chr(10) +
+        "- Come formulare problemi concreti e realistici?" + chr(10) + chr(10) +
         "Crea contenuti didattici RICCHI, PRECISI e COMPLETI su: " + arg + " (classe " + classe + ")." + chr(10) +
         "I testi devono essere adatti a ragazzi di 11-13 anni, chiari, corretti matematicamente." + chr(10) +
         "Rispondi SOLO con JSON valido. Nessun testo extra. Nessun markdown." + chr(10) + chr(10) +
         "{" + chr(10) +
         '  "titolo": "' + arg.upper()[:35] + '",' + chr(10) +
-        '  "def1": "Definizione precisa e completa di ' + arg + ' per ragazzi (max 88 char, no apostrofi)",' + chr(10) +
-        '  "reg1": "Prima proprieta o regola fondamentale di ' + arg + ' con spiegazione (max 88 char, no apostrofi)",' + chr(10) +
-        '  "reg2": "Seconda proprieta o regola di ' + arg + ' con esempio numerico (max 88 char, no apostrofi)",' + chr(10) +
-        '  "reg3": "Terza regola o caso speciale di ' + arg + ' (max 88 char, no apostrofi)",' + chr(10) +
-        '  "es1": "Esempio numerico completo 1: mostra il calcolo passo per passo (max 65 char)",' + chr(10) +
-        '  "es2": "Esempio numerico completo 2: altro caso con numeri diversi (max 65 char)",' + chr(10) +
-        '  "es3": "Esempio numerico completo 3: caso piu complesso (max 65 char)",' + chr(10) +
-        '  "ese1": "Calcola o risolvi: esercizio specifico su ' + arg + ' con numeri (max 78 char, no apostrofi)",' + chr(10) +
-        '  "ese2": "Calcola o risolvi: secondo esercizio su ' + arg + ' con numeri diversi (max 78 char, no apostrofi)",' + chr(10) +
-        '  "ese3": "Calcola o risolvi: terzo esercizio piu articolato su ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
-        '  "ese4": "Esercizio 4: applica una proprieta di ' + arg + ' con numeri specifici (max 78 char, no apostrofi)",' + chr(10) +
-        '  "ese5": "Esercizio 5: problema piu complesso che combina regole di ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
-        '  "ese6": "Esercizio 6: sfida con ' + arg + ' per chi ha capito bene (max 78 char, no apostrofi)",' + chr(10) +
-        '  "vf1": "Affermazione VERA specifica e precisa su ' + arg + ' con numeri (max 72 char, no apostrofi)",' + chr(10) +
-        '  "vf2": "Affermazione FALSA su ' + arg + ' con un errore comune dei ragazzi (max 72 char, no apostrofi)",' + chr(10) +
-        '  "vf3": "Affermazione VERA su una proprieta di ' + arg + ' (max 72 char, no apostrofi)",' + chr(10) +
-        '  "vf4": "Affermazione FALSA su ' + arg + ' che sembra vera ma non lo e (max 72 char, no apostrofi)",' + chr(10) +
-        '  "prob1": "Problema applicativo 1: contesto reale che usa ' + arg + ' con dati numerici (max 78 char, no apostrofi)",' + chr(10) +
-        '  "prob1b": "Seconda riga problema 1: chiedi calcolo specifico con i dati (max 78 char, no apostrofi)",' + chr(10) +
-        '  "prob2": "Problema applicativo 2: situazione concreta diversa che usa ' + arg + ' (max 78 char, no apostrofi)",' + chr(10) +
-        '  "prob2b": "Seconda riga problema 2: chiedi il risultato con verifica (max 78 char, no apostrofi)"' + chr(10) +
+        '  "def1": "Definizione matematicamente precisa con esempio numerico esplicito (max 90 char, no apostrofi)",' + chr(10) +
+        '  "reg1": "Regola 1 con procedimento e numeri reali es. 2+3=5 oppure 2x4=8 (max 90 char, no apostrofi)",' + chr(10) +
+        '  "reg2": "Regola 2: caso specifico con numeri e verifica del risultato (max 90 char, no apostrofi)",' + chr(10) +
+        '  "reg3": "Caso speciale o eccezione importante: cosa non fare con esempi (max 90 char, no apostrofi)",' + chr(10) +
+        '  "es1": "Esempio 1 COMPLETO con numeri reali: scrivi tutti i passaggi es. 3x4=12 (max 68 char)",' + chr(10) +
+        '  "es2": "Esempio 2 COMPLETO numeri piu grandi: mostra calcolo intermedio (max 68 char)",' + chr(10) +
+        '  "es3": "Esempio 3 caso avanzato con piu passaggi e verifica finale (max 68 char)",' + chr(10) +
+        '  "ese1": "Calcola [operazione specifica con numeri reali inseriti qui] (max 82 char, no apostrofi)",' + chr(10) +
+        '  "ese2": "Calcola [operazione diversa con numeri diversi inseriti qui] (max 82 char, no apostrofi)",' + chr(10) +
+        '  "ese3": "Risolvi [esercizio con piu passaggi e numeri specifici inseriti] (max 82 char, no apostrofi)",' + chr(10) +
+        '  "ese4": "Applica la regola a questi numeri [inserisci numeri specifici] (max 82 char, no apostrofi)",' + chr(10) +
+        '  "ese5": "Verifica se [affermazione con numeri] e corretta mostrando il calcolo (max 82 char, no apostrofi)",' + chr(10) +
+        '  "ese6": "Sfida: [problema articolato con piu dati numerici inseriti qui] (max 82 char, no apostrofi)",' + chr(10) +
+        '  "vf1": "Affermazione VERA con numeri reali inseriti: es. 4 elevato a 2 vale 16 (max 74 char, no apostrofi)",' + chr(10) +
+        '  "vf2": "Affermazione FALSA errore tipico dei ragazzi con numeri specifici (max 74 char, no apostrofi)",' + chr(10) +
+        '  "vf3": "Affermazione VERA su proprieta con verifica numerica inclusa (max 74 char, no apostrofi)",' + chr(10) +
+        '  "vf4": "Affermazione FALSA trabocchetto frequente con numeri che ingannano (max 74 char, no apostrofi)",' + chr(10) +
+        '  "prob1": "Marco ha [numero] [oggetti]. Deve [azione che usa ' + arg + '] con [dati]. (max 82 char, no apostrofi)",' + chr(10) +
+        '  "prob1b": "Quanti/Quanto [risultato specifico richiesto]? Scrivi il procedimento completo. (max 82 char, no apostrofi)",' + chr(10) +
+        '  "prob2": "Una [cosa concreta] ha [dati numerici]. Usando ' + arg + ' calcola [quesito]. (max 82 char, no apostrofi)",' + chr(10) +
+        '  "prob2b": "Mostra il calcolo passo per passo e verifica il risultato ottenuto. (max 82 char, no apostrofi)"' + chr(10) +
         "}"
     )
 
     try:
-        raw = ai(prompt_json, max_tok=1200)
+        raw = ai_ragiona(prompt_json, max_tok=4000)
         print("JSON DeepSeek:", raw[:200])
         # Pulizia
         if "```" in raw:
