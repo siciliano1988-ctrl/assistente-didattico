@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assistente Didattico AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--navy:#0f1b2d;--mid:#152338;--card:#162340;--gold:#c9a84c;--gl:#e8c87a;--gdim:rgba(201,168,76,.15);--tp:#e8edf5;--ts:rgba(232,237,245,.6);--tm:rgba(232,237,245,.35);--bd:rgba(255,255,255,.08);--bg:rgba(201,168,76,.3);--ok:#4caf82}
+body{font-family:'DM Sans',sans-serif;background:var(--navy);color:var(--tp);min-height:100vh}
+
+/* HEADER */
+.hdr{background:var(--mid);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 16px;height:54px;gap:10px;position:sticky;top:0;z-index:50}
+.hlogo{width:32px;height:32px;background:linear-gradient(135deg,var(--gold),var(--gl));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.htit{font-family:'Playfair Display',serif;font-size:15px;color:white;flex:1}
+.htit small{font-family:'DM Sans',sans-serif;font-size:11px;color:var(--tm);display:block;font-weight:300}
+.badge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap}
+.bai{background:var(--gdim);border:1px solid var(--bg);color:var(--gold)}
+.besci{padding:5px 10px;background:rgba(255,255,255,.05);border:1px solid var(--bd);border-radius:7px;color:var(--ts);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.besci:hover{border-color:var(--bg);color:var(--gold)}
+
+/* LAYOUT */
+.body{display:flex;min-height:calc(100vh - 54px)}
+
+/* SIDEBAR */
+.sb{width:278px;min-width:278px;background:var(--mid);border-right:1px solid var(--bd);overflow-y:auto;padding:10px 8px 20px}
+.sb::-webkit-scrollbar{width:3px}
+.sb::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+
+.sec{margin-bottom:3px}
+.shdr{display:flex;align-items:center;gap:7px;padding:8px 9px;border-radius:9px;cursor:pointer;user-select:none;transition:background .15s}
+.shdr:hover,.shdr.ap{background:var(--gdim)}
+.shdr.ap .slbl{color:var(--gl)}
+.sico{font-size:14px;width:18px;text-align:center}
+.slbl{font-size:11px;font-weight:700;color:var(--gold);letter-spacing:1.3px;text-transform:uppercase;flex:1}
+.sfrec{font-size:9px;color:var(--tm);transition:transform .22s}
+.shdr.ap .sfrec{transform:rotate(90deg)}
+.sub{overflow:hidden;max-height:0;transition:max-height .3s ease}
+.sub.ap{max-height:900px}
+
+.voce{display:flex;align-items:flex-start;gap:7px;padding:7px 9px 7px 11px;border-radius:8px;cursor:pointer;border:1px solid transparent;margin-bottom:1px;transition:all .14s}
+.voce:hover{background:rgba(255,255,255,.04);border-color:var(--bd)}
+.voce.att{background:var(--gdim);border-color:var(--bg)}
+.voce.att .vt{color:white;font-weight:500}
+.voce.att .vd{background:var(--gold)}
+.vd{width:5px;height:5px;border-radius:50%;background:rgba(232,237,245,.3);flex-shrink:0;margin-top:6px}
+.vi{flex:1}
+.vt{font-size:13px;color:var(--ts);line-height:1.3}
+.vs{font-size:10px;color:var(--tm);margin-top:2px}
+
+/* MAIN */
+.main{flex:1;padding:16px;min-width:0;overflow-y:auto}
+
+.panel{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:18px;margin-bottom:14px}
+.phdr{display:flex;align-items:center;gap:10px;margin-bottom:15px;padding-bottom:13px;border-bottom:1px solid var(--bd)}
+.pico{width:42px;height:42px;background:var(--gdim);border:1px solid var(--bg);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.ptit h2{font-family:'Playfair Display',serif;font-size:17px;color:white}
+.ptit p{font-size:12px;color:var(--tm);margin-top:2px}
+
+.tinfo{padding:9px 12px;background:rgba(201,168,76,.06);border:1px solid var(--bg);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--ts);line-height:1.6;display:none}
+.tinfo.vis{display:block}
+
+.fg{margin-bottom:11px}
+.fg label{display:block;font-size:11px;font-weight:600;color:var(--gold);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:5px}
+.fg select,.fg input,.fg textarea{width:100%;padding:9px 11px;background:rgba(255,255,255,.04);border:1px solid var(--bd);border-radius:8px;color:var(--tp);font-family:'DM Sans',sans-serif;font-size:14px;transition:all .15s;outline:none;appearance:none}
+.fg select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23c9a84c' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:26px}
+.fg select option{background:#152338}
+.fg select:focus,.fg input:focus,.fg textarea:focus{border-color:var(--gold);background:rgba(201,168,76,.04)}
+.fg textarea{resize:vertical;min-height:56px;line-height:1.5}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:11px}
+.chip{display:flex;align-items:center;gap:5px;padding:5px 10px;background:rgba(255,255,255,.03);border:1px solid var(--bd);border-radius:18px;cursor:pointer;font-size:12px;color:var(--ts);user-select:none;transition:all .14s}
+.chip input{display:none}
+.chip.on{background:var(--gdim);border-color:var(--bg);color:var(--gold)}
+
+.btng{width:100%;padding:13px;background:linear-gradient(135deg,var(--gold),var(--gl));border:none;border-radius:11px;color:var(--navy);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:all .22s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btng:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 24px rgba(201,168,76,.35)}
+.btng:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.spin{width:15px;height:15px;border:2px solid rgba(15,27,45,.3);border-top-color:var(--navy);border-radius:50%;animation:rot .8s linear infinite;display:none}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+.prog{display:none;padding-top:11px}
+.prog.vis{display:block}
+.plbl{font-size:12px;color:var(--tm);margin-bottom:5px;display:flex;justify-content:space-between}
+.pbar{height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
+.pfill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gl));border-radius:2px;transition:width .35s ease}
+
+/* RESULT */
+.res{background:var(--card);border:1px solid var(--bd);border-radius:14px;overflow:hidden;display:none}
+.res.vis{display:block;animation:su .35s ease}
+@keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.rhdr{padding:12px 17px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.rsx{display:flex;align-items:center;gap:8px}
+.rdot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.rtit{font-size:14px;font-weight:600;color:white}
+.rsub{font-size:11px;color:var(--tm);margin-top:1px}
+.razi{display:flex;gap:7px}
+.bta{padding:6px 12px;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:1px solid;transition:all .14s}
+.bsec{background:transparent;border-color:var(--bd);color:var(--ts)}
+.bsec:hover{border-color:var(--bg);color:var(--gold)}
+.bpri{background:linear-gradient(135deg,var(--gold),var(--gl));border-color:transparent;color:var(--navy);font-weight:700}
+.bpri:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(201,168,76,.3)}
+.bpri:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.tabs{display:flex;padding:0 17px;border-bottom:1px solid var(--bd)}
+.tab{padding:10px 12px;font-size:13px;color:var(--tm);cursor:pointer;border-bottom:2px solid transparent;transition:all .14s;margin-bottom:-1px}
+.tab.at{color:var(--gold);border-bottom-color:var(--gold);font-weight:500}
+.tc{display:none;padding:15px 17px}
+.tc.at{display:block}
+.cbox{background:#0a1628;border:1px solid var(--bd);border-radius:9px;overflow:hidden}
+.chdr{padding:8px 12px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}
+.cdts{display:flex;gap:4px}
+.cdt{width:10px;height:10px;border-radius:50%}
+.cdt:nth-child(1){background:#ff5f57}.cdt:nth-child(2){background:#ffbd2e}.cdt:nth-child(3){background:#28c840}
+.clng{font-size:11px;color:var(--tm);font-family:'JetBrains Mono',monospace}
+.carea{width:100%;min-height:200px;max-height:360px;padding:12px;background:transparent;border:none;color:#a8c7fa;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.7;resize:vertical;outline:none}
+
+.toast{position:fixed;bottom:16px;right:16px;padding:10px 14px;border-radius:9px;font-size:13px;font-weight:500;z-index:2000;animation:tin .25s ease;max-width:300px}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.tok{background:rgba(76,175,130,.12);border:1px solid rgba(76,175,130,.3);color:#7de8b5}
+.tko{background:rgba(224,82,82,.12);border:1px solid rgba(224,82,82,.3);color:#ff9090}
+.tnfo{background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.3);color:var(--gl)}
+
+@media(max-width:680px){
+  .body{flex-direction:column}
+  .sb{width:100%;min-width:unset;border-right:none;border-bottom:1px solid var(--bd);max-height:240px}
+  .f2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hlogo">📚</div>
+  <div class="htit">Assistente Didattico AI<small>Generatore materiali scolastici</small></div>
+  <span class="badge bai">⚡ DeepSeek AI</span>
+  <button class="besci" onclick="logout()">Esci</button>
+</header>
+
+<div class="body">
+<aside class="sb">
+
+  <div class="sec">
+    <div class="shdr" onclick="ts(this)"><span class="sico">📝</span><span class="slbl">Verifiche</span><span class="sfrec">▶</span></div>
+    <div class="sub">
+      <div class="voce" onclick="sc(this,'verifica_grammatica','Grammatica Italiana','✏️','Protocollo EDISCO · 6 esercizi · B&N o colori')"><div class="vd"></div><div class="vi"><div class="vt">Grammatica Italiana</div><div class="vs">Protocollo EDISCO · 6 esercizi</div></div></div>
+      <div class="voce" onclick="sc(this,'verifica_comprensione','Comprensione del Testo','📄','Stile INVALSI · Testo + 9 esercizi')"><div class="vd"></div><div class="vi"><div class="vt">Comprensione del Testo</div><div class="vs">Stile INVALSI · 9 esercizi</div></div></div>
+      <div class="voce" onclick="sc(this,'verifica_storia','Storia','📜','9 esercizi · 100 punti · Stile Loescher')"><div class="vd"></div><div class="vi"><div class="vt">Storia</div><div class="vs">9 esercizi · 100 punti · Stile Loescher</div></div></div>
+      <div class="voce" onclick="sc(this,'verifica_geografia','Geografia','🌍','9 esercizi · 100 punti · Carte geografiche')"><div class="vd"></div><div class="vi"><div class="vt">Geografia</div><div class="vs">9 esercizi · 100 punti</div></div></div>
+      <div class="voce" onclick="sc(this,'verifica_scienze','Scienze','🔬','9 esercizi · Stile Loescher')"><div class="vd"></div><div class="vi"><div class="vt">Scienze</div><div class="vs">9 esercizi · Stile Loescher</div></div></div>
+      <div class="voce" onclick="sc(this,'verifica_tecnologia','Tecnologia','⚙️','10 esercizi · Stile EDISCO')"><div class="vd"></div><div class="vi"><div class="vt">Tecnologia</div><div class="vs">10 esercizi · Stile EDISCO</div></div></div>
+      <div class="voce" onclick="sc(this,'verifica_inglese','Inglese','🇬🇧','10 esercizi · 60 punti · In inglese')"><div class="vd"></div><div class="vi"><div class="vt">Inglese</div><div class="vs">10 esercizi · 60 punti · In inglese</div></div></div>
+      <div class="voce" onclick="sc(this,'verifica_francese','Francese','🇫🇷','10 esercizi · 60 punti · En français')"><div class="vd"></div><div class="vi"><div class="vt">Francese</div><div class="vs">10 esercizi · 60 punti · En français</div></div></div>
+      <div class="voce" onclick="sc(this,'verifica_arte','Storia dell Arte','🎨','10 esercizi · Immagini parte attiva')"><div class="vd"></div><div class="vi"><div class="vt">Storia dell'Arte</div><div class="vs">10 esercizi · Immagini parte attiva</div></div></div>
+      <div class="voce" onclick="sc(this,'verifica_musica','Storia della Musica','🎵','10 esercizi · 49 punti')"><div class="vd"></div><div class="vi"><div class="vt">Storia della Musica</div><div class="vs">10 esercizi · 49 punti</div></div></div>
+      <div class="voce" onclick="sc(this,'verifica_motoria','Scienze Motorie','🏃','10 esercizi · 50 punti')"><div class="vd"></div><div class="vi"><div class="vt">Scienze Motorie</div><div class="vs">10 esercizi · 50 punti</div></div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="shdr" onclick="ts(this)"><span class="sico">📋</span><span class="slbl">Schede Didattiche</span><span class="sfrec">▶</span></div>
+    <div class="sub">
+      <div class="voce" onclick="sc(this,'scheda_umanistica','Scheda Umanistica','📋','Template EDISCO · 10 esercizi · Palette per materia')"><div class="vd"></div><div class="vi"><div class="vt">Scheda Area Umanistica</div><div class="vs">Storia · Geografia · Italiano · Inglese · Francese</div></div></div>
+      <div class="voce" onclick="sc(this,'scheda_matematica','Scheda di Matematica','🔢','Template con griglie · Frazioni · Grafici a pizza · 3 pagine A4')"><div class="vd"></div><div class="vi"><div class="vt">Scheda di Matematica</div><div class="vs">Griglie · Frazioni · Grafici a pizza</div></div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="shdr" onclick="ts(this)"><span class="sico">🗺️</span><span class="slbl">Mappe</span><span class="sfrec">▶</span></div>
+    <div class="sub">
+      <div class="voce" onclick="sc(this,'mappa_mentale','Mappa Mentale (Buzan)','🧠','Radiale · Nodo centrale + 7 rami colorati')"><div class="vd"></div><div class="vi"><div class="vt">Mappa Mentale (stile Buzan)</div><div class="vs">Radiale · 7 rami colorati · Callout sintesi</div></div></div>
+      <div class="voce" onclick="sc(this,'mappa_concettuale','Mappa Concettuale','↔️','8 box collegati · A4 orizzontale')"><div class="vd"></div><div class="vi"><div class="vt">Mappa Concettuale Orizzontale</div><div class="vs">8 box collegati · A4 orizzontale</div></div></div>
+      <div class="voce" onclick="sc(this,'mappa_gerarchica','Mappa Gerarchica DSA','⬇️','Verticale · 4 livelli · Alto contrasto')"><div class="vd"></div><div class="vi"><div class="vt">Mappa Gerarchica (adatta DSA)</div><div class="vs">Verticale · 4 livelli · Alto contrasto</div></div></div>
+    </div>
+  </div>
+
+</aside>
+
+<main class="main">
+  <div class="panel">
+    <div class="phdr">
+      <div class="pico" id="pico">✨</div>
+      <div class="ptit"><h2 id="ptit">Scegli un materiale</h2><p id="psub">Clicca una voce dal menu a sinistra</p></div>
+    </div>
+
+    <div class="tinfo" id="tinfo"></div>
+
+    <div class="f2 fg">
+      <div><label>Materia</label>
+        <select id="smat">
+          <option value="">— automatico —</option>
+          <option>Storia</option><option>Geografia</option><option>Scienze</option>
+          <option>Tecnologia</option><option>Italiano</option><option>Grammatica</option>
+          <option>Inglese</option><option>Francese</option><option>Matematica</option>
+          <option>Storia dell'Arte</option><option>Scienze Motorie</option><option>Musica</option>
+        </select>
+      </div>
+      <div><label>Classe</label>
+        <select id="scl">
+          <option>Prima Media</option><option>Seconda Media</option><option>Terza Media</option>
+          <option>Quinta Elementare</option><option>Quarta Elementare</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="fg"><label>Argomento *</label>
+      <input type="text" id="arg" placeholder="Es: Le frazioni equivalenti, Il Medioevo, Present Simple...">
+    </div>
+
+    <div class="fg"><label>Opzioni</label>
+      <div class="chips">
+        <label class="chip" id="k1"><input type="checkbox" onchange="ck('k1')">♿ BES/Autismo</label>
+        <label class="chip" id="k2"><input type="checkbox" onchange="ck('k2')">📖 DSA-friendly</label>
+        <label class="chip" id="k3"><input type="checkbox" onchange="ck('k3')">⬛ Bianco e Nero</label>
+        <label class="chip" id="k4"><input type="checkbox" onchange="ck('k4')">✅ Con soluzioni</label>
+      </div>
+    </div>
+
+    <div class="fg"><label>Note aggiuntive</label>
+      <textarea id="note" placeholder="Istruzioni specifiche, livello, argomenti da includere/escludere..."></textarea>
+    </div>
+
+    <button class="btng" id="bg" onclick="genera()">
+      <div class="spin" id="sp"></div><span id="bt">✨ Genera con AI</span>
+    </button>
+
+    <div class="prog" id="pg">
+      <div class="plbl"><span id="pl">Elaborazione...</span><span id="pp">0%</span></div>
+      <div class="pbar"><div class="pfill" id="pf" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="res" id="res">
+    <div class="rhdr">
+      <div class="rsx"><div class="rdot"></div><div><div class="rtit" id="rt">Pronto</div><div class="rsub" id="rs">Clicca Scarica PDF</div></div></div>
+      <div class="razi">
+        <button class="bta bsec" onclick="copia()">📋 Copia</button>
+        <button class="bta bpri" id="bpdf" onclick="scarica()">⬇️ Scarica PDF</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab at" onclick="stab('c',this)">🐍 Codice Python</div>
+      <div class="tab" onclick="stab('i',this)">ℹ️ Info</div>
+    </div>
+    <div class="tc at" id="tc-c">
+      <div class="cbox">
+        <div class="chdr"><div class="cdts"><div class="cdt"></div><div class="cdt"></div><div class="cdt"></div></div><span class="clng">Python · ReportLab</span></div>
+        <textarea class="carea" id="co" spellcheck="false"></textarea>
+      </div>
+    </div>
+    <div class="tc" id="tc-i">
+      <p style="font-size:13px;color:var(--ts);line-height:1.8">
+        <strong style="color:var(--gold)">Come funziona:</strong><br>
+        1. DeepSeek ha generato il codice Python con i contenuti adattati<br>
+        2. Clicca <strong>Scarica PDF</strong> per eseguire il codice sul server<br>
+        3. ReportLab crea il PDF e lo scarica automaticamente<br>
+        4. Puoi modificare il codice prima di scaricarlo
+      </p>
+    </div>
+  </div>
+</main>
+</div>
+
+<script>
+// ── Stato ──────────────────────────────────────────────────────────────────
+let tipoId = '', nomeC = '', isMatematica = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Apri tutte le sezioni
+  document.querySelectorAll('.shdr').forEach(h => { h.classList.add('ap'); h.nextElementSibling.classList.add('ap'); });
+  document.getElementById('arg').addEventListener('keydown', e => { if(e.key==='Enter'&&e.ctrlKey) genera(); });
+});
+
+function logout() { fetch('/logout').then(() => location.reload()); }
+
+function ts(el) { el.classList.toggle('ap'); el.nextElementSibling.classList.toggle('ap'); }
+
+function sc(el, id, nome, ico, desc) {
+  document.querySelectorAll('.voce').forEach(v => v.classList.remove('att'));
+  el.classList.add('att');
+  tipoId = id; nomeC = nome;
+  isMatematica = (id === 'scheda_matematica');
+  document.getElementById('pico').textContent = ico;
+  document.getElementById('ptit').textContent = nome;
+  document.getElementById('psub').textContent = "Inserisci l'argomento e clicca Genera con AI";
+  const ti = document.getElementById('tinfo');
+  ti.textContent = desc; ti.classList.add('vis');
+  document.getElementById('arg').focus();
+}
+
+function ck(id) { const c = document.getElementById(id); c.classList.toggle('on', c.querySelector('input').checked); }
+
+function stab(n, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('at'));
+  document.querySelectorAll('.tc').forEach(t => t.classList.remove('at'));
+  el.classList.add('at'); document.getElementById('tc-' + n).classList.add('at');
+}
+
+// ── Genera ────────────────────────────────────────────────────────────────
+async function genera() {
+  if (!tipoId) { toast('Seleziona un materiale dal menu','tko'); return; }
+  const arg = document.getElementById('arg').value.trim();
+  if (!arg) { toast('Inserisci un argomento','tko'); document.getElementById('arg').focus(); return; }
+
+  // Scheda matematica: vai diretto al PDF senza mostrare codice
+  if (isMatematica) {
+    await generaMatematica(arg);
+    return;
+  }
+
+  const classe = document.getElementById('scl').value;
+  const materia = document.getElementById('smat').value;
+  const note = document.getElementById('note').value.trim();
+  const opzioni = {
+    bes: document.getElementById('k1').querySelector('input').checked,
+    dsa: document.getElementById('k2').querySelector('input').checked,
+    bn:  document.getElementById('k3').querySelector('input').checked,
+    sol: document.getElementById('k4').querySelector('input').checked,
+    note
+  };
+
+  setBusy(true);
+  document.getElementById('res').classList.remove('vis');
+  animaProgress([
+    {p:15,l:'🧠 Analisi richiesta...',t:300},
+    {p:35,l:'📖 Lettura protocollo...',t:1200},
+    {p:60,l:'✍️ Generazione contenuti...',t:2800},
+    {p:82,l:'🐍 Scrittura codice Python...',t:4800},
+    {p:96,l:'🔍 Ottimizzazione...',t:6500},
+  ]);
+
+  try {
+    const r = await fetch('/genera', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tipo_id:tipoId, materia, argomento:arg, classe, opzioni})
+    });
+    const d = await r.json();
+    setProgress(100, '✅ Completato!');
+    await sleep(400);
+
+    if (d.success) {
+      document.getElementById('co').value = d.codice;
+      document.getElementById('rt').textContent = nomeC + ' — ' + arg;
+      document.getElementById('rs').textContent = 'Generato per ' + classe + ' · Clicca Scarica PDF';
+      document.getElementById('res').classList.add('vis');
+      document.getElementById('res').scrollIntoView({behavior:'smooth',block:'start'});
+      toast('✅ Codice generato!','tok');
+    } else {
+      toast('❌ ' + (d.error||'Errore'), 'tko');
+    }
+  } catch(e) {
+    toast('❌ Errore: ' + e.message, 'tko');
+  } finally {
+    setBusy(false);
+  }
+}
+
+// ── Scheda Matematica: genera + scarica direttamente ───────────────────────
+async function generaMatematica(arg) {
+  const classe = document.getElementById('scl').value;
+  setBusy(true);
+  document.getElementById('res').classList.remove('vis');
+  animaProgress([
+    {p:20,l:'🧠 DeepSeek genera i contenuti...',t:200},
+    {p:50,l:'📐 Applicazione al template...',t:2000},
+    {p:80,l:'🖨️ Creazione PDF con ReportLab...',t:4000},
+    {p:96,l:'✅ Quasi pronto...',t:6000},
+  ]);
+
+  try {
+    const r = await fetch('/genera_matematica', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({argomento:arg, classe})
+    });
+
+    setProgress(100, '✅ Completato!');
+    await sleep(400);
+
+    if (r.ok) {
+      const blob = await r.blob();
+      if (blob.size < 100) {
+        const txt = await blob.text();
+        toast('❌ ' + txt, 'tko');
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Scheda_Matematica_' + arg.replace(/\s+/g,'_') + '.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('✅ PDF scaricato!','tok');
+    } else {
+      const d = await r.json();
+      toast('❌ ' + (d.error||'Errore'), 'tko');
+    }
+  } catch(e) {
+    toast('❌ ' + e.message,'tko');
+  } finally {
+    setBusy(false);
+  }
+}
+
+// ── Scarica PDF (per le altre tipologie) ──────────────────────────────────
+async function scarica() {
+  const codice = document.getElementById('co').value;
+  if (!codice) { toast('Genera prima il codice','tko'); return; }
+
+  const bpdf = document.getElementById('bpdf');
+  bpdf.disabled = true; bpdf.textContent = '⏳ Creazione...';
+  toast('⏳ Generazione PDF...','tnfo');
+
+  try {
+    const r = await fetch('/scarica_pdf', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({codice, nome: nomeC + '_' + document.getElementById('arg').value})
+    });
+
+    if (r.ok) {
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (nomeC + '_' + document.getElementById('arg').value).replace(/\s+/g,'_') + '.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('✅ PDF scaricato!','tok');
+    } else {
+      const d = await r.json();
+      toast('❌ ' + (d.error||'Errore PDF'), 'tko');
+    }
+  } catch(e) {
+    toast('❌ ' + e.message,'tko');
+  } finally {
+    bpdf.disabled = false; bpdf.textContent = '⬇️ Scarica PDF';
+  }
+}
+
+async function copia() {
+  try { await navigator.clipboard.writeText(document.getElementById('co').value); toast('📋 Copiato!','tok'); }
+  catch(e) { toast('Seleziona e copia manualmente','tnfo'); }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function setBusy(b) {
+  const bg = document.getElementById('bg');
+  bg.disabled = b;
+  document.getElementById('sp').style.display = b ? 'block' : 'none';
+  document.getElementById('bt').textContent = b ? 'Generazione in corso...' : '✨ Genera con AI';
+  if(b) document.getElementById('pg').classList.add('vis');
+  else setTimeout(() => document.getElementById('pg').classList.remove('vis'), 1000);
+}
+
+function setProgress(p, l) {
+  document.getElementById('pf').style.width = p + '%';
+  document.getElementById('pp').textContent = p + '%';
+  document.getElementById('pl').textContent = l;
+}
+
+function animaProgress(steps) {
+  setProgress(0,'⏳ Avvio...');
+  steps.forEach(s => setTimeout(() => setProgress(s.p, s.l), s.t));
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+let tT;
+function toast(m, t='tnfo') {
+  const e = document.querySelector('.toast'); if(e) e.remove(); clearTimeout(tT);
+  const d = document.createElement('div'); d.className='toast '+t; d.textContent=m;
+  document.body.appendChild(d);
+  tT = setTimeout(() => { d.style.opacity='0'; d.style.transition='opacity .3s'; setTimeout(()=>d.remove(),300); }, 4000);
+}
+</script>
+</body>
+</html>
