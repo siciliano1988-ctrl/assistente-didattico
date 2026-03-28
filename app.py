@@ -254,13 +254,19 @@ def genera_matematica():
     template = template_path.read_text(encoding="utf-8")
 
     # Estrai SOLO la parte statica (helper functions + header/footer)
-    # Le funzioni degli esercizi le riscrive DeepSeek da zero
+    # Rimuovi il docstring iniziale che confonde DeepSeek
     idx_blocchi = template.find("# ============" + "=" * 60 + "\n# BLOCCHI")
     if idx_blocchi == -1:
         idx_blocchi = template.find("# BLOCCHI")
     parte_statica = template[:idx_blocchi] if idx_blocchi > 0 else template[:7800]
 
-    # Fix percorso output nella parte statica
+    # Rimuovi il docstring iniziale (confonde DeepSeek)
+    if parte_statica.startswith('"""'):
+        fine_doc = parte_statica.find('"""', 3)
+        if fine_doc > 0:
+            parte_statica = parte_statica[fine_doc + 3:].lstrip()
+
+    # Fix percorso output
     parte_statica = parte_statica.replace(
         '"/mnt/user-data/outputs/scheda_matematica.pdf"',
         '"/tmp/out.pdf"'
@@ -271,70 +277,69 @@ def genera_matematica():
     )
 
     # Chiedi a DeepSeek di riscrivere SOLO le funzioni degli esercizi
-    prompt = f"""Sei un esperto di matematica per la scuola media italiana.
-Devi creare una scheda didattica COMPLETAMENTE NUOVA su "{arg}" per classe {classe}.
+    prompt = f"""Scrivi codice Python per una scheda di matematica su "{arg}" (classe {classe}).
 
-Hai a disposizione queste funzioni grafiche gia pronte (NON ridefinirle):
-- block_open(cv, y_top, h, title, cb, cl) -> yc
-- frac(cv, cx, cy, num, den, fsz, col)
-- pizza(cv, cx, cy, r, num, den, fc)
-- write_lines(cv, cx, cy, col)
-- draw_header(cv), draw_footer(cv)
-- sf(cv, colore), ss(cv, colore)
-- Colori: NAVY, NAVYL, ORANGE, ORANGEL, GREEN, GREENL, PURPLE, PURPLEL,
-  RED, REDL, TEAL, TEALL, BROWN, BROWNL, GRAY, GRAYL, GOLD, WHITE, BLACK
-- Layout: ML=28, BW=539.28, X0=38, X1=557.28, CW=519.28, TOP=737.89, GAP=7, TH=26
+USA queste funzioni gia definite (non ridefinirle):
+block_open(cv,y_top,h,title,cb,cl)->yc, frac(cv,cx,cy,num,den,fsz,col),
+pizza(cv,cx,cy,r,num,den,fc), write_lines(cv,cx,cy,col),
+draw_header(cv), draw_footer(cv), sf(cv,c), ss(cv,c)
 
-REGOLE CRITICHE:
-1. Rispondi SOLO con codice Python puro, zero testo, zero markdown, zero backtick
-2. NON ridefinire le funzioni elencate sopra
-3. USA SOLO stringhe normali (VIETATE f-string con variabili nelle drawString)
-4. PAG1 max 738pt totali, PAG2+ max 718pt totali
-5. OUT e TOP sono gia definiti, non ridefinirli
-6. Ogni blocco: usa block_open() per il titolo colorato con griglia
+Colori: NAVY,NAVYL,ORANGE,ORANGEL,GREEN,GREENL,RED,REDL,TEAL,TEALL,BROWN,BROWNL,PURPLE,PURPLEL,GOLD,WHITE,BLACK,GRAY,GRAYL
+Costanti: ML=28, X0=38, X1=557.28, BW=539.28, CW=519.28, TOP=737.89, GAP=7, TH=26
+OUT="/tmp/out.pdf" gia definito.
 
-STRUTTURA OBBLIGATORIA (3 pagine, tutto su "{arg}"):
+SCRIVI SOLO queste funzioni (niente altro, niente spiegazioni):
 
-PAG1 (no footer, max 738pt):
-- def b_teoria(cv, y_top): h=200
-  * Spiega "{arg}" con testo chiaro per ragazzi di 11-13 anni
-  * Definizione, regola principale, esempio numerico visivo
-  * Usa box colorati, testi con cv.drawString(), esempi grafici
-- def b_esercizio1(cv, y_top): h adeguata
-  * Primo esercizio visivo/grafico appropriato per "{arg}"
+def b_teoria(cv, y_top):
+    # Spiega {arg} per classe {classe}, h=200
+    # Usa block_open(), cv.drawString() con testi su {arg}
+    ...
 
-PAG2 (con footer, max 718pt):
-- def b_esercizio2(cv, y_top): esercizio pratico su "{arg}"
-- def b_esercizio3(cv, y_top): esercizio pratico su "{arg}"
-- def b_esercizio4(cv, y_top): esercizio pratico su "{arg}"
+def b_es1(cv, y_top):
+    # Esercizio 1 su {arg}, h appropriata
+    ...
 
-PAG3 (con footer, max 718pt):
-- def b_vero_falso(cv, y_top): 4-6 affermazioni V/F su "{arg}"
-- def b_problemi(cv, y_top): 2 problemi applicativi su "{arg}"
+def b_es2(cv, y_top):
+    # Esercizio 2 su {arg}
+    ...
+
+def b_es3(cv, y_top):
+    # Esercizio 3 su {arg}
+    ...
+
+def b_vf(cv, y_top):
+    # Vero/Falso su {arg}, 4 affermazioni
+    ...
+
+def b_problemi(cv, y_top):
+    # 2 problemi su {arg}
+    ...
 
 def generate():
-  cv = canvas.Canvas(OUT, pagesize=A4)
-  draw_header(cv)
-  y = TOP
-  y = b_teoria(cv, y)
-  y = b_esercizio1(cv, y)
-  cv.showPage()
-  draw_header(cv); draw_footer(cv)
-  y = TOP
-  y = b_esercizio2(cv, y)
-  y = b_esercizio3(cv, y)
-  y = b_esercizio4(cv, y)
-  cv.showPage()
-  draw_header(cv); draw_footer(cv)
-  y = TOP
-  y = b_vero_falso(cv, y)
-  y = b_problemi(cv, y)
-  cv.showPage()
-  cv.save()
+    import os; os.makedirs("/tmp", exist_ok=True)
+    cv = canvas.Canvas(OUT, pagesize=A4)
+    draw_header(cv)
+    y = TOP
+    y = b_teoria(cv, y)
+    y = b_es1(cv, y)
+    cv.showPage()
+    draw_header(cv); draw_footer(cv)
+    y = TOP
+    y = b_es2(cv, y)
+    y = b_es3(cv, y)
+    cv.showPage()
+    draw_header(cv); draw_footer(cv)
+    y = TOP
+    y = b_vf(cv, y)
+    y = b_problemi(cv, y)
+    cv.showPage()
+    cv.save()
 
-IMPORTANTE: tutto il contenuto deve riguardare "{arg}".
-NON usare frazioni, pizze o contenuti delle frazioni se non richiesto.
-Crea contenuti originali e didatticamente corretti per "{arg}"."""
+REGOLE:
+- Solo stringhe normali in drawString (NO f-string con variabili)
+- h di ogni blocco deve essere sufficiente per il contenuto
+- PAG1 totale max 738pt, PAG2 e PAG3 max 718pt
+- Tutto il contenuto riguarda "{arg}", niente frazioni o altro"""
 
     try:
         funzioni_esercizi = ai(prompt, max_tok=4096)
@@ -344,6 +349,14 @@ Crea contenuti originali e didatticamente corretti per "{arg}"."""
             funzioni_esercizi = funzioni_esercizi.split("```python")[1].split("```")[0].strip()
         elif "```" in funzioni_esercizi:
             funzioni_esercizi = funzioni_esercizi.split("```")[1].split("```")[0].strip()
+
+        # Controllo: DeepSeek ha restituito il template originale invece di generare?
+        if "TEMPLATE_SCHEDA_BES" in funzioni_esercizi or "REGOLA FONDAMENTALE" in funzioni_esercizi:
+            return jsonify({"error": "DeepSeek ha restituito il template originale invece di generare nuove funzioni. Riprova."}), 500
+
+        # Controllo: il codice contiene le funzioni necessarie?
+        if "def generate()" not in funzioni_esercizi and "def b_" not in funzioni_esercizi:
+            return jsonify({"error": "DeepSeek non ha generato le funzioni necessarie. Riprova."}), 500
 
     except Exception as e:
         return jsonify({"error": f"DeepSeek non risponde: {str(e)}"}), 500
