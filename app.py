@@ -84,23 +84,30 @@ Palette: {pal}
 Output: /tmp/output_scheda.pdf"""
 
     elif tipo_id == "scheda_matematica":
+        template = leggi_template("template_matematica.py")
         return f"""{SYSTEM_BASE}
-RICHIESTA: Crea una Scheda di Matematica con ReportLab per classe {classe}.
-Argomento: {argomento}
+HAI RICEVUTO IL TEMPLATE COMPLETO QUI SOTTO.
+IL TUO UNICO COMPITO: adattare i DATI degli esercizi all argomento richiesto.
+NON riscrivere le funzioni. NON cambiare la struttura.
+SOSTITUISCI SOLO: numeri nelle frazioni, testi delle affermazioni, testi dei problemi.
 
-STRUTTURA SEMPLICE (massimo 120 righe):
-- Import: from reportlab.lib.pagesizes import A4; from reportlab.pdfgen import canvas; import os
-- os.makedirs('/tmp', exist_ok=True)
-- W, H = A4; OUT = "/tmp/output_scheda.pdf"
-- cv = canvas.Canvas(OUT, pagesize=A4)
-- Intestazione semplice con titolo e box dati studente
-- 3-4 esercizi su frazioni con spazio per risposta
-- cv.save()
-
-NON usare funzioni complesse. NON usare f-string con variabili nei titoli.
-USA stringhe normali per i titoli: cv.drawString(x,y,"1. Titolo esercizio")
+ARGOMENTO: {argomento}
+CLASSE: {classe}
 {"Note: " + note if note else ""}
-Output: /tmp/output_scheda.pdf"""
+
+REGOLE CRITICHE:
+- Rispondi con il template completo modificato, pronto per essere eseguito
+- Cambia OUT = in: OUT = "/tmp/output_scheda.pdf"
+- Cambia os.makedirs riga in: os.makedirs("/tmp", exist_ok=True)
+- NON usare f-string per i titoli dei blocchi block_open()
+  USA stringhe normali con numeri hardcoded:
+  SBAGLIATO: block_open(cv,y,"● 2 TITOLO",...)  -- va bene solo se non e f-string
+  SBAGLIATO: f"● {{num_blocco}} TITOLO"  -- mai f-string con variabili nei titoli
+  GIUSTO: "● 2   TITOLO ESERCIZIO"  -- stringa normale con numero fisso
+- Alla fine del file scrivi: generate()
+
+TEMPLATE DA ADATTARE:
+{template}"""
     elif tipo_id == "mappa_mentale":
         template = leggi_template("template_mappa_mentale.py")
         return f"""{SYSTEM_BASE}
@@ -195,7 +202,7 @@ def genera():
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=8000,
+            max_tokens=16000,
             temperature=0.2
         )
         codice = response.choices[0].message.content.strip()
