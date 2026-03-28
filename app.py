@@ -322,9 +322,18 @@ def genera_pdf():
             stdout = result.stdout[-400:] if result.stdout else ""
             return jsonify({"error": f"PDF non creato. Output: {stdout}"}), 500
 
-        nome_file = f"{nome.replace(' ','_')}.pdf"
-        return send_file(pdf_path, as_attachment=True,
-                         download_name=nome_file, mimetype="application/pdf")
+        nome_file = nome.replace(" ", "_") + ".pdf"
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+        from flask import Response
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": "attachment; filename=" + nome_file,
+                "Content-Length": str(len(pdf_bytes))
+            }
+        )
 
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Timeout: il codice ha impiegato troppo tempo"}), 500
@@ -480,16 +489,63 @@ JSON esatto richiesto:
             return jsonify({"error": "PDF non creato"}), 500
 
         nome_file = "Scheda_Matematica_" + argomento.replace(" ", "_") + ".pdf"
-        response = send_file(pdf_path, as_attachment=True,
-                        download_name=nome_file, mimetype="application/pdf")
-        # Header debug: dice se DeepSeek ha funzionato
-        fonte = "deepseek" if errore_deepseek is None else "fallback:" + str(errore_deepseek)[:50]
-        response.headers["X-Fonte-Dati"] = fonte
-        return response
+        # Leggi il file come bytes e mandalo direttamente
+        # send_file con /tmp non funziona su Render
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+        from flask import Response
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename={nome_file}",
+                "Content-Length": str(len(pdf_bytes))
+            }
+        )
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Timeout"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/debug_matematica", methods=["POST"])
+@login_required
+def debug_matematica():
+    """Route di debug per capire cosa succede"""
+    data = request.get_json()
+    argomento = data.get("argomento", "test")
+    
+    risultato = {}
+    
+    # Step 1: template esiste?
+    template_path = PROTO_DIR / "template_matematica.py"
+    risultato["template_esiste"] = template_path.exists()
+    
+    if not template_path.exists():
+        return jsonify(risultato)
+    
+    # Step 2: DeepSeek funziona?
+    try:
+        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+        risposta = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": f'Rispondi SOLO con questo JSON esatto, sostituendo TEST con "{argomento}": {{"ok": true, "argomento": "TEST"}}'}],
+            max_tokens=50,
+            temperature=0
+        ).choices[0].message.content.strip()
+        risultato["deepseek_risposta"] = risposta
+        risultato["deepseek_ok"] = True
+    except Exception as e:
+        risultato["deepseek_ok"] = False
+        risultato["deepseek_errore"] = str(e)
+    
+    # Step 3: le sostituzioni funzionano?
+    codice = template_path.read_text(encoding="utf-8")
+    q = chr(34); a = chr(39); bullet = chr(9679)
+    stringa_test = q + bullet + " 1   CHE COS" + a + "E" + a + " UNA FRAZIONE?" + q
+    risultato["sostituzione_titolo_trovata"] = stringa_test in codice
+    
+    return jsonify(risultato)
 
 
 if __name__ == "__main__":
