@@ -336,37 +336,142 @@ def genera_pdf():
 @app.route("/genera_pdf_matematica", methods=["POST"])
 @login_required
 def genera_pdf_matematica():
-    """Esegue il template matematica originale direttamente senza AI"""
+    """
+    Genera scheda matematica in due step:
+    1. DeepSeek genera SOLO i dati da sostituire (JSON piccolo)
+    2. Il server applica i dati al template originale ed esegue
+    """
     data = request.get_json()
     argomento = data.get("argomento", "Frazioni")
     classe = data.get("classe", "Prima Media")
 
-    # Leggi il template originale
     template_path = PROTO_DIR / "template_matematica.py"
     if not template_path.exists():
-        return jsonify({"error": "Template matematica non trovato"}), 404
+        return jsonify({"error": "Template matematica non trovato sul server"}), 404
 
-    codice_originale = template_path.read_text(encoding="utf-8")
+    # STEP 1: chiedi a DeepSeek solo i dati da sostituire
+    prompt_dati = f"""Sei un esperto di didattica della matematica per la scuola media.
+Devo adattare una scheda di matematica all argomento: {argomento} per classe {classe}.
 
-    # Adatta: cambia OUT e makedirs
-    codice = codice_originale.replace(
+Rispondi SOLO con un oggetto JSON valido, nessun altro testo, nessun markdown.
+Il JSON deve avere esattamente questa struttura:
+
+{{
+  "titolo_teoria": "Titolo del blocco teoria (es: CHE COS E UNA FRAZIONE?)",
+  "testo_teoria_1": "Prima riga spiegazione teorica (max 90 caratteri)",
+  "testo_teoria_2": "Seconda riga spiegazione teorica (max 110 caratteri)",
+  "pizze_items": [[2,4],[1,3],[3,6],[2,8],[3,8],[1,2],[1,4],[2,5],[3,4],[1,6],[4,8],[2,3],[1,5],[3,5],[2,6],[1,8],[5,8],[3,3],[2,7],[4,6]],
+  "vero_falso": [
+    "Affermazione 1 vera o falsa su {argomento} (max 80 caratteri)",
+    "Affermazione 2 vera o falsa su {argomento} (max 80 caratteri)",
+    "Affermazione 3 vera o falsa su {argomento} (max 80 caratteri)",
+    "Affermazione 4 vera o falsa su {argomento} (max 80 caratteri)"
+  ],
+  "problemi": [
+    ["Testo problema 1 su {argomento} (max 85 caratteri)", "Suggerimento o seconda riga (max 85 caratteri)"],
+    ["Testo problema 2 su {argomento} (max 85 caratteri)", "Suggerimento o seconda riga (max 85 caratteri)"]
+  ]
+}}
+
+IMPORTANTE: le pizze_items restano uguali, cambiano solo teoria, vero_falso e problemi."""
+
+    try:
+        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt_dati}],
+            max_tokens=1000,
+            temperature=0.3
+        )
+        risposta = response.choices[0].message.content.strip()
+
+        # Pulisci eventuale markdown
+        if "```json" in risposta:
+            risposta = risposta.split("```json")[1].split("```")[0].strip()
+        elif "```" in risposta:
+            risposta = risposta.split("```")[1].split("```")[0].strip()
+
+        dati = json.loads(risposta)
+
+    except Exception as e:
+        # Se DeepSeek fallisce, usa dati di default adattati
+        dati = {
+            "titolo_teoria": f"CHE COS E {argomento.upper()}?",
+            "testo_teoria_1": f"Studiamo {argomento} con esempi pratici e visivi.",
+            "testo_teoria_2": f"Esercita passo dopo passo con gli esercizi seguenti.",
+            "pizze_items": [[2,4],[1,3],[3,6],[2,8],[3,8],[1,2],[1,4],[2,5],[3,4],[1,6],[4,8],[2,3],[1,5],[3,5],[2,6],[1,8],[5,8],[3,3],[2,7],[4,6]],
+            "vero_falso": [
+                f"La prima affermazione riguarda {argomento}.",
+                f"La seconda affermazione riguarda {argomento}.",
+                f"La terza affermazione riguarda {argomento}.",
+                f"La quarta affermazione riguarda {argomento}."
+            ],
+            "problemi": [
+                [f"Problema 1 su {argomento}.", "Risolvi e scrivi il risultato."],
+                [f"Problema 2 su {argomento}.", "Risolvi e scrivi il risultato."]
+            ]
+        }
+
+    # STEP 2: leggi il template e applica i dati
+    codice = template_path.read_text(encoding="utf-8")
+
+    # Cambia percorso output
+    codice = codice.replace(
         'OUT  = "/mnt/user-data/outputs/scheda_matematica.pdf"',
         'OUT  = "/tmp/output_scheda.pdf"'
-    ).replace(
+    )
+    codice = codice.replace(
         'os.makedirs("/mnt/user-data/outputs",exist_ok=True)',
         'os.makedirs("/tmp",exist_ok=True)'
     )
 
-    # Aggiungi chiamata generate() alla fine
-    if "if __name__" in codice:
-        codice = codice.replace(
-            'if __name__=="__main__":\n    generate()',
-            'generate()'
-        )
-    if "generate()" not in codice.split("def generate()")[1]:
-        codice += "\n\ngenerate()"
+    # Sostituisci titolo teoria
+    titolo_old = "● 1   CHE COS'E' UNA FRAZIONE?"
+    titolo_new = f"● 1   {dati.get('titolo_teoria', 'SPIEGAZIONE TEORICA')}"
+    codice = codice.replace(f'"{titolo_old}"', f'"{titolo_new}"')
 
-    # Rimuovi file precedente
+    # Sostituisci testo teoria
+    testo1_old = "Una FRAZIONE indica quante PARTI prendo di un intero diviso in PARTI UGUALI."
+    testo1_new = dati.get("testo_teoria_1", testo1_old)
+    codice = codice.replace(f'"{testo1_old}"', f'"{testo1_new}"')
+
+    testo2_old = "Il numero IN ALTO e' il NUMERATORE (parti prese), quello IN BASSO e' il DENOMINATORE (parti totali)."
+    testo2_new = dati.get("testo_teoria_2", testo2_old)
+    codice = codice.replace(f'"{testo2_old}"', f'"{testo2_new}"')
+
+    # Sostituisci affermazioni Vero/Falso
+    vf_dati = dati.get("vero_falso", [])
+    vf_originali = [
+        "2/4 e 1/2 sono frazioni equivalenti perche' 2x2 = 4x1.",
+        "Con lo stesso numeratore, la frazione con denominatore maggiore e' la piu' grande.",
+        "Per semplificare 6/8 si divide per 2: si ottiene 3/4.",
+        "La frazione 3/7 e' maggiore di 3/9 perche' 7 e' minore di 9.",
+    ]
+    for i, (orig, nuovo) in enumerate(zip(vf_originali, vf_dati)):
+        if nuovo:
+            codice = codice.replace(f'"{orig}"', f'"{nuovo}"')
+
+    # Sostituisci problemi
+    prob_dati = dati.get("problemi", [])
+    prob_originali = [
+        ("Sara ha mangiato 2/8 di una torta, Luca ne ha mangiata 1/4.",
+         "Chi ne ha mangiata di piu'? (Suggerimento: trova la fraz. equiv. di 1/4 con den. 8.)"),
+        ("Una bottiglia e' piena per 3/4. Ne bevo 1/2.",
+         "Quanta acqua rimane? (Suggerimento: trova il denominatore comune 4.)"),
+    ]
+    for i, (orig_pair, nuovo_pair) in enumerate(zip(prob_originali, prob_dati)):
+        if nuovo_pair and len(nuovo_pair) >= 2:
+            codice = codice.replace(f'"{orig_pair[0]}"', f'"{nuovo_pair[0]}"')
+            codice = codice.replace(f'"{orig_pair[1]}"', f'"{nuovo_pair[1]}"')
+
+    # Aggiungi chiamata generate()
+    if 'if __name__' in codice:
+        idx = codice.find('if __name__')
+        codice = codice[:idx] + 'generate()' + chr(10)
+    elif codice.count('generate()') < 2:
+        codice += chr(10) + chr(10) + 'generate()'
+
+    # Esegui il codice
     pdf_path = "/tmp/output_scheda.pdf"
     if os.path.exists(pdf_path):
         os.remove(pdf_path)
@@ -386,7 +491,7 @@ def genera_pdf_matematica():
         return send_file(pdf_path, as_attachment=True,
                         download_name=nome_file, mimetype="application/pdf")
     except subprocess.TimeoutExpired:
-        return jsonify({"error": "Timeout"}), 500
+        return jsonify({"error": "Timeout generazione PDF"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
