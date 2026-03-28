@@ -205,6 +205,21 @@ def genera():
                 "import os\nos.makedirs('/tmp', exist_ok=True)"
             )
 
+        # Sostituisci caratteri speciali che causano SyntaxError nelle f-string
+        def fix_fstring(line):
+            if 'f"' in line or "f'" in line:
+                line = line.replace('●', '*')
+                line = line.replace('•', '-')
+                line = line.replace('→', '->')
+                line = line.replace('←', '<-')
+                line = line.replace('✓', 'OK')
+                line = line.replace('✗', 'NO')
+                line = line.replace('★', '*')
+            return line
+
+        righe_pulite = [fix_fstring(r) for r in codice.split(chr(10))]
+        codice = chr(10).join(righe_pulite)
+
         return jsonify({"success": True, "codice": codice})
     except Exception as e:
         return jsonify({"error": f"Errore AI: {str(e)}"}), 500
