@@ -336,86 +336,18 @@ def genera_pdf():
 @app.route("/genera_pdf_matematica", methods=["POST"])
 @login_required
 def genera_pdf_matematica():
-    """
-    Genera scheda matematica in due step:
-    1. DeepSeek genera SOLO i dati da sostituire (JSON piccolo)
-    2. Il server applica i dati al template originale ed esegue
-    """
     data = request.get_json()
     argomento = data.get("argomento", "Frazioni")
     classe = data.get("classe", "Prima Media")
 
     template_path = PROTO_DIR / "template_matematica.py"
     if not template_path.exists():
-        return jsonify({"error": "Template matematica non trovato sul server"}), 404
+        return jsonify({"error": "Template matematica non trovato"}), 404
 
-    # STEP 1: chiedi a DeepSeek solo i dati da sostituire
-    prompt_dati = f"""Sei un esperto di didattica della matematica per la scuola media.
-Devo adattare una scheda di matematica all argomento: {argomento} per classe {classe}.
-
-Rispondi SOLO con un oggetto JSON valido, nessun altro testo, nessun markdown.
-Il JSON deve avere esattamente questa struttura:
-
-{{
-  "titolo_teoria": "Titolo del blocco teoria (es: CHE COS E UNA FRAZIONE?)",
-  "testo_teoria_1": "Prima riga spiegazione teorica (max 90 caratteri)",
-  "testo_teoria_2": "Seconda riga spiegazione teorica (max 110 caratteri)",
-  "pizze_items": [[2,4],[1,3],[3,6],[2,8],[3,8],[1,2],[1,4],[2,5],[3,4],[1,6],[4,8],[2,3],[1,5],[3,5],[2,6],[1,8],[5,8],[3,3],[2,7],[4,6]],
-  "vero_falso": [
-    "Affermazione 1 vera o falsa su {argomento} (max 80 caratteri)",
-    "Affermazione 2 vera o falsa su {argomento} (max 80 caratteri)",
-    "Affermazione 3 vera o falsa su {argomento} (max 80 caratteri)",
-    "Affermazione 4 vera o falsa su {argomento} (max 80 caratteri)"
-  ],
-  "problemi": [
-    ["Testo problema 1 su {argomento} (max 85 caratteri)", "Suggerimento o seconda riga (max 85 caratteri)"],
-    ["Testo problema 2 su {argomento} (max 85 caratteri)", "Suggerimento o seconda riga (max 85 caratteri)"]
-  ]
-}}
-
-IMPORTANTE: le pizze_items restano uguali, cambiano solo teoria, vero_falso e problemi."""
-
-    try:
-        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[{"role": "user", "content": prompt_dati}],
-            max_tokens=1000,
-            temperature=0.3
-        )
-        risposta = response.choices[0].message.content.strip()
-
-        # Pulisci eventuale markdown
-        if "```json" in risposta:
-            risposta = risposta.split("```json")[1].split("```")[0].strip()
-        elif "```" in risposta:
-            risposta = risposta.split("```")[1].split("```")[0].strip()
-
-        dati = json.loads(risposta)
-
-    except Exception as e:
-        # Se DeepSeek fallisce, usa dati di default adattati
-        dati = {
-            "titolo_teoria": f"CHE COS E {argomento.upper()}?",
-            "testo_teoria_1": f"Studiamo {argomento} con esempi pratici e visivi.",
-            "testo_teoria_2": f"Esercita passo dopo passo con gli esercizi seguenti.",
-            "pizze_items": [[2,4],[1,3],[3,6],[2,8],[3,8],[1,2],[1,4],[2,5],[3,4],[1,6],[4,8],[2,3],[1,5],[3,5],[2,6],[1,8],[5,8],[3,3],[2,7],[4,6]],
-            "vero_falso": [
-                f"La prima affermazione riguarda {argomento}.",
-                f"La seconda affermazione riguarda {argomento}.",
-                f"La terza affermazione riguarda {argomento}.",
-                f"La quarta affermazione riguarda {argomento}."
-            ],
-            "problemi": [
-                [f"Problema 1 su {argomento}.", "Risolvi e scrivi il risultato."],
-                [f"Problema 2 su {argomento}.", "Risolvi e scrivi il risultato."]
-            ]
-        }
-
-    # STEP 2: leggi il template e applica i dati
+    # Leggi template
     codice = template_path.read_text(encoding="utf-8")
 
-    # Cambia percorso output
+    # Fix percorsi output
     codice = codice.replace(
         'OUT  = "/mnt/user-data/outputs/scheda_matematica.pdf"',
         'OUT  = "/tmp/output_scheda.pdf"'
@@ -425,53 +357,113 @@ IMPORTANTE: le pizze_items restano uguali, cambiano solo teoria, vero_falso e pr
         'os.makedirs("/tmp",exist_ok=True)'
     )
 
-    # Sostituisci titolo teoria
-    titolo_old = "● 1   CHE COS'E' UNA FRAZIONE?"
-    titolo_new = f"● 1   {dati.get('titolo_teoria', 'SPIEGAZIONE TEORICA')}"
-    codice = codice.replace(f'"{titolo_old}"', f'"{titolo_new}"')
+    # Chiedi a DeepSeek i testi adattati
+    errore_deepseek = None
+    testi = None
+    try:
+        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+        risposta = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": f"""Rispondi SOLO con JSON puro, zero testo extra, zero markdown.
+Crea testi didattici su "{argomento}" per classe {classe}.
+JSON esatto richiesto:
+{{"t1":"Titolo blocco teoria su {argomento} max 40 caratteri","s1":"Frase 1 spiegazione {argomento} max 85 caratteri","s2":"Frase 2 spiegazione {argomento} max 100 caratteri","vf1":"Affermazione vera o falsa su {argomento} max 75 caratteri","vf2":"Seconda affermazione su {argomento} max 75 caratteri","vf3":"Terza affermazione su {argomento} max 75 caratteri","vf4":"Quarta affermazione su {argomento} max 75 caratteri","p1a":"Testo problema 1 su {argomento} max 80 caratteri","p1b":"Seconda riga problema 1 max 80 caratteri","p2a":"Testo problema 2 su {argomento} max 80 caratteri","p2b":"Seconda riga problema 2 max 80 caratteri"}}"""}],
+            max_tokens=600,
+            temperature=0.3
+        ).choices[0].message.content.strip()
 
-    # Sostituisci testo teoria
-    testo1_old = "Una FRAZIONE indica quante PARTI prendo di un intero diviso in PARTI UGUALI."
-    testo1_new = dati.get("testo_teoria_1", testo1_old)
-    codice = codice.replace(f'"{testo1_old}"', f'"{testo1_new}"')
+        # Pulizia markdown
+        for tag in ["```json", "```"]:
+            if tag in risposta:
+                parti = risposta.split(tag)
+                risposta = parti[1] if len(parti) > 1 else risposta
+        risposta = risposta.strip().strip("`").strip()
 
-    testo2_old = "Il numero IN ALTO e' il NUMERATORE (parti prese), quello IN BASSO e' il DENOMINATORE (parti totali)."
-    testo2_new = dati.get("testo_teoria_2", testo2_old)
-    codice = codice.replace(f'"{testo2_old}"', f'"{testo2_new}"')
+        testi = json.loads(risposta)
+        errore_deepseek = None
 
-    # Sostituisci affermazioni Vero/Falso
-    vf_dati = dati.get("vero_falso", [])
-    vf_originali = [
-        "2/4 e 1/2 sono frazioni equivalenti perche' 2x2 = 4x1.",
-        "Con lo stesso numeratore, la frazione con denominatore maggiore e' la piu' grande.",
-        "Per semplificare 6/8 si divide per 2: si ottiene 3/4.",
-        "La frazione 3/7 e' maggiore di 3/9 perche' 7 e' minore di 9.",
-    ]
-    for i, (orig, nuovo) in enumerate(zip(vf_originali, vf_dati)):
-        if nuovo:
-            codice = codice.replace(f'"{orig}"', f'"{nuovo}"')
+    except Exception as e:
+        errore_deepseek = str(e)
+        # Fallback: usa testi adattati all argomento senza f-string
+        nome_arg = argomento[:35]
+        testi = {
+            "t1": nome_arg.upper(),
+            "s1": "Studia " + argomento + " con attenzione e metodo.",
+            "s2": "Esegui gli esercizi e controlla i risultati.",
+            "vf1": "La prima affermazione su " + argomento + " e" + chr(39) + " vera.",
+            "vf2": "La seconda affermazione e" + chr(39) + " vera.",
+            "vf3": "La terza affermazione e" + chr(39) + " vera.",
+            "vf4": "La quarta affermazione e" + chr(39) + " vera.",
+            "p1a": "Risolvi il primo problema su " + argomento + ".",
+            "p1b": "Scrivi il procedimento e il risultato.",
+            "p2a": "Risolvi il secondo problema su " + argomento + ".",
+            "p2b": "Scrivi il procedimento e il risultato."
+        }
 
-    # Sostituisci problemi
-    prob_dati = dati.get("problemi", [])
-    prob_originali = [
-        ("Sara ha mangiato 2/8 di una torta, Luca ne ha mangiata 1/4.",
-         "Chi ne ha mangiata di piu'? (Suggerimento: trova la fraz. equiv. di 1/4 con den. 8.)"),
-        ("Una bottiglia e' piena per 3/4. Ne bevo 1/2.",
-         "Quanta acqua rimane? (Suggerimento: trova il denominatore comune 4.)"),
-    ]
-    for i, (orig_pair, nuovo_pair) in enumerate(zip(prob_originali, prob_dati)):
-        if nuovo_pair and len(nuovo_pair) >= 2:
-            codice = codice.replace(f'"{orig_pair[0]}"', f'"{nuovo_pair[0]}"')
-            codice = codice.replace(f'"{orig_pair[1]}"', f'"{nuovo_pair[1]}"')
+    # Applica sostituzioni nel template
+    q = chr(34)   # virgolette doppie
+    a = chr(39)   # apostrofo
 
-    # Aggiungi chiamata generate()
+    # 1. Titolo teoria
+    codice = codice.replace(
+        q + chr(9679) + " 1   CHE COS" + a + "E" + a + " UNA FRAZIONE?" + q,
+        q + chr(9679) + " 1   " + testi["t1"].upper() + q
+    )
+
+    # 2. Prima riga spiegazione
+    codice = codice.replace(
+        q + "Una FRAZIONE indica quante PARTI prendo di un intero diviso in PARTI UGUALI." + q,
+        q + testi["s1"] + q
+    )
+
+    # 3. Seconda riga spiegazione
+    codice = codice.replace(
+        q + "Il numero IN ALTO e" + a + " il NUMERATORE (parti prese), quello IN BASSO e" + a + " il DENOMINATORE (parti totali)." + q,
+        q + testi["s2"] + q
+    )
+
+    # 4. Affermazioni Vero/Falso
+    codice = codice.replace(
+        q + "2/4 e 1/2 sono frazioni equivalenti perche" + a + " 2x2 = 4x1." + q,
+        q + testi["vf1"] + q
+    )
+    codice = codice.replace(
+        q + "Con lo stesso numeratore, la frazione con denominatore maggiore e" + a + " la piu" + a + " grande." + q,
+        q + testi["vf2"] + q
+    )
+    codice = codice.replace(
+        q + "Per semplificare 6/8 si divide per 2: si ottiene 3/4." + q,
+        q + testi["vf3"] + q
+    )
+    codice = codice.replace(
+        q + "La frazione 3/7 e" + a + " maggiore di 3/9 perche" + a + " 7 e" + a + " minore di 9." + q,
+        q + testi["vf4"] + q
+    )
+
+    # 5. Problemi
+    codice = codice.replace(
+        q + "Sara ha mangiato 2/8 di una torta, Luca ne ha mangiata 1/4." + q,
+        q + testi["p1a"] + q
+    )
+    codice = codice.replace(
+        q + "Chi ne ha mangiata di piu" + a + "? (Suggerimento: trova la fraz. equiv. di 1/4 con den. 8.)" + q,
+        q + testi["p1b"] + q
+    )
+    codice = codice.replace(
+        q + "Una bottiglia e" + a + " piena per 3/4. Ne bevo 1/2." + q,
+        q + testi["p2a"] + q
+    )
+    codice = codice.replace(
+        q + "Quanta acqua rimane? (Suggerimento: trova il denominatore comune 4.)" + q,
+        q + testi["p2b"] + q
+    )
+
+    # 6. Fix chiamata generate()
     if 'if __name__' in codice:
         idx = codice.find('if __name__')
         codice = codice[:idx] + 'generate()' + chr(10)
-    elif codice.count('generate()') < 2:
-        codice += chr(10) + chr(10) + 'generate()'
 
-    # Esegui il codice
+    # Esegui
     pdf_path = "/tmp/output_scheda.pdf"
     if os.path.exists(pdf_path):
         os.remove(pdf_path)
@@ -483,15 +475,19 @@ IMPORTANTE: le pizze_items restano uguali, cambiano solo teoria, vero_falso e pr
             env={**os.environ, "MPLBACKEND": "Agg"}
         )
         if result.returncode != 0:
-            errore = result.stderr[-1200:]
-            return jsonify({"error": f"Errore template: {errore}"}), 500
+            return jsonify({"error": f"Errore: {result.stderr[-800:]}"}), 500
         if not os.path.exists(pdf_path):
             return jsonify({"error": "PDF non creato"}), 500
-        nome_file = f"Scheda_Matematica_{argomento}.pdf".replace(" ", "_")
-        return send_file(pdf_path, as_attachment=True,
+
+        nome_file = "Scheda_Matematica_" + argomento.replace(" ", "_") + ".pdf"
+        response = send_file(pdf_path, as_attachment=True,
                         download_name=nome_file, mimetype="application/pdf")
+        # Header debug: dice se DeepSeek ha funzionato
+        fonte = "deepseek" if errore_deepseek is None else "fallback:" + str(errore_deepseek)[:50]
+        response.headers["X-Fonte-Dati"] = fonte
+        return response
     except subprocess.TimeoutExpired:
-        return jsonify({"error": "Timeout generazione PDF"}), 500
+        return jsonify({"error": "Timeout"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
