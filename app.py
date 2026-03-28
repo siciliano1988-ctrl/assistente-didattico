@@ -84,30 +84,54 @@ Palette: {pal}
 Output: /tmp/output_scheda.pdf"""
 
     elif tipo_id == "scheda_matematica":
-        template = leggi_template("template_matematica.py")
         return f"""{SYSTEM_BASE}
-HAI RICEVUTO IL TEMPLATE COMPLETO QUI SOTTO.
-IL TUO UNICO COMPITO: adattare i DATI degli esercizi all argomento richiesto.
-NON riscrivere le funzioni. NON cambiare la struttura.
-SOSTITUISCI SOLO: numeri nelle frazioni, testi delle affermazioni, testi dei problemi.
+Crea una scheda didattica di matematica su "{argomento}" per classe {classe}.
 
-ARGOMENTO: {argomento}
-CLASSE: {classe}
-{"Note: " + note if note else ""}
+Genera codice Python ReportLab CORTO (max 70 righe) e FUNZIONANTE.
+
+STRUTTURA ESATTA da seguire:
+
+import os
+os.makedirs('/tmp', exist_ok=True)
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+W, H = A4
+cv = canvas.Canvas("/tmp/output_scheda.pdf", pagesize=A4)
+ML, MR = 28, 28
+
+# INTESTAZIONE
+cv.setFillColorRGB(0.10, 0.20, 0.55)
+cv.rect(0, H-70, W, 70, fill=1, stroke=0)
+cv.setFillColorRGB(1, 1, 1)
+cv.setFont("Helvetica-Bold", 18)
+cv.drawCentredString(W/2, H-38, "SCHEDA DI MATEMATICA")
+cv.setFont("Helvetica", 11)
+cv.drawCentredString(W/2, H-56, "{argomento} - Classe {classe}")
+cv.setFillColorRGB(0.93, 0.93, 0.93)
+cv.rect(ML, H-98, W-ML-MR, 24, fill=1, stroke=0)
+cv.setFillColorRGB(0.1, 0.1, 0.1)
+cv.setFont("Helvetica", 9)
+cv.drawString(ML+6, H-89, "Nome: _______________  Cognome: _______________  Classe: _____  Data: ___________")
+
+# ESERCIZI su {argomento}
+# [qui generi 3 esercizi appropriati con linee punteggiate per le risposte]
+# Per ogni esercizio:
+# - Titolo con rettangolo colorato
+# - Testo esercizio
+# - Linee punteggiate per le risposte: cv.setDash([3,4]); cv.line(ML, y, W-MR, y); cv.setDash([])
+
+# PUNTEGGIO TOTALE in fondo
+cv.setFont("Helvetica-Bold", 11)
+cv.drawCentredString(W/2, 40, "PUNTEGGIO TOTALE: _______ / 100")
+
+cv.save()
 
 REGOLE CRITICHE:
-- Rispondi con il template completo modificato, pronto per essere eseguito
-- Cambia OUT = in: OUT = "/tmp/output_scheda.pdf"
-- Cambia os.makedirs riga in: os.makedirs("/tmp", exist_ok=True)
-- NON usare f-string per i titoli dei blocchi block_open()
-  USA stringhe normali con numeri hardcoded:
-  SBAGLIATO: block_open(cv,y,"● 2 TITOLO",...)  -- va bene solo se non e f-string
-  SBAGLIATO: f"● {{num_blocco}} TITOLO"  -- mai f-string con variabili nei titoli
-  GIUSTO: "● 2   TITOLO ESERCIZIO"  -- stringa normale con numero fisso
-- Alla fine del file scrivi: generate()
-
-TEMPLATE DA ADATTARE:
-{template}"""
+1. USA SOLO stringhe normali per tutti i testi. MAI f-string con variabili.
+2. Scrivi testi HARDCODED: cv.drawString(x, y, "1.  Calcola le seguenti frazioni:")
+3. NON scrivere mai: f"qualcosa {{variabile}}"
+4. Il codice deve essere completo e funzionante
+{"Note: " + note if note else ""}"""
     elif tipo_id == "mappa_mentale":
         template = leggi_template("template_mappa_mentale.py")
         return f"""{SYSTEM_BASE}
@@ -202,7 +226,7 @@ def genera():
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=16000,
+            max_tokens=4096,
             temperature=0.2
         )
         codice = response.choices[0].message.content.strip()
@@ -304,6 +328,65 @@ def genera_pdf():
 
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Timeout: il codice ha impiegato troppo tempo"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+@app.route("/genera_pdf_matematica", methods=["POST"])
+@login_required
+def genera_pdf_matematica():
+    """Esegue il template matematica originale direttamente senza AI"""
+    data = request.get_json()
+    argomento = data.get("argomento", "Frazioni")
+    classe = data.get("classe", "Prima Media")
+
+    # Leggi il template originale
+    template_path = PROTO_DIR / "template_matematica.py"
+    if not template_path.exists():
+        return jsonify({"error": "Template matematica non trovato"}), 404
+
+    codice_originale = template_path.read_text(encoding="utf-8")
+
+    # Adatta: cambia OUT e makedirs
+    codice = codice_originale.replace(
+        'OUT  = "/mnt/user-data/outputs/scheda_matematica.pdf"',
+        'OUT  = "/tmp/output_scheda.pdf"'
+    ).replace(
+        'os.makedirs("/mnt/user-data/outputs",exist_ok=True)',
+        'os.makedirs("/tmp",exist_ok=True)'
+    )
+
+    # Aggiungi chiamata generate() alla fine
+    if "if __name__" in codice:
+        codice = codice.replace(
+            'if __name__=="__main__":\n    generate()',
+            'generate()'
+        )
+    if "generate()" not in codice.split("def generate()")[1]:
+        codice += "\n\ngenerate()"
+
+    # Rimuovi file precedente
+    pdf_path = "/tmp/output_scheda.pdf"
+    if os.path.exists(pdf_path):
+        os.remove(pdf_path)
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", codice],
+            capture_output=True, text=True, timeout=60,
+            env={**os.environ, "MPLBACKEND": "Agg"}
+        )
+        if result.returncode != 0:
+            errore = result.stderr[-1200:]
+            return jsonify({"error": f"Errore template: {errore}"}), 500
+        if not os.path.exists(pdf_path):
+            return jsonify({"error": "PDF non creato"}), 500
+        nome_file = f"Scheda_Matematica_{argomento}.pdf".replace(" ", "_")
+        return send_file(pdf_path, as_attachment=True,
+                        download_name=nome_file, mimetype="application/pdf")
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Timeout"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
